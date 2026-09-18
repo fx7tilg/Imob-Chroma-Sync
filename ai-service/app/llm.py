@@ -1,4 +1,4 @@
-"""LLM client abstraction - swap provider via env, no code change needed."""
+"""LLM client abstraction - swap provider via env, no code change needed as we did very precisely with many models."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Protocol
 
 log = logging.getLogger("chroma-ai.llm")
 
-# Price per 1M tokens (input, output), USD. Only models we actually use need an entry.
+# Price per 1M tokens (input, output), USD. Only models we actually use need an entry(we had only 15$).
 _PRICE_PER_1M: dict[str, tuple[float, float]] = {
     "gpt-4.1-mini": (0.40, 1.60),
     "gpt-4o-mini": (0.15, 0.60),
@@ -339,7 +339,7 @@ class GroqClient:
             kwargs: dict = dict(
                 model=self._model,
                 temperature=0,
-                max_tokens=900,
+                max_tokens=8000,
                 messages=[
                     {"role": "system", "content": system + "\n\nReturn ONLY a single JSON object. No markdown, no prose, no thinking tags."},
                     {"role": "user", "content": user},
@@ -373,7 +373,7 @@ class GroqClient:
             r = await self._client.chat.completions.create(
                 model=self._model,
                 temperature=0.7,
-                max_tokens=900,
+                max_tokens=8000,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -437,8 +437,8 @@ class LlmaasClient:
         self._client = AsyncOpenAI(
             api_key="placeholder",  # replaced per-call via with_options() once a real token is fetched
             base_url=os.environ.get("LLMAAS_BASE_URL", "https://llmapi.ai.vwgroup.com"),
-            # default_headers={"X-LLM-API-CLIENT-ID": f"Bearer {client_id}"},
-             default_headers={"X-LLM-API-CLIENT-ID": f"Bearer {os.getenv('LLMAAS_API_KEY')}"}
+            # default_headers={"X-LLM-API-CLIENT-ID": f"Bearer {client_id}"}
+            default_headers={"X-LLM-API-CLIENT-ID": f"Bearer {os.getenv('LLMAAS_API_KEY')}"}
         )
 
     async def _authed_client(self):

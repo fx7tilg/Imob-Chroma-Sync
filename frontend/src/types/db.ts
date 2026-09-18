@@ -480,6 +480,12 @@ export type Database = {
         };
         Returns: void;
       };
+      use_ai_credit: {
+        Args: {
+          p_feature_key: string;
+        };
+        Returns: { allowed: boolean; remaining: number | null };
+      };
     };
   };
 };

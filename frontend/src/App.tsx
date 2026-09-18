@@ -14,6 +14,7 @@ import NewDecision from "./pages/NewDecision";
 import OpenPool from "./pages/decisions/OpenPool";
 import MyQueue from "./pages/decisions/MyQueue";
 import MyHistory from "./pages/decisions/MyHistory";
+import MySummaryReport from "./pages/decisions/MySummaryReport";
 import Conflicts from "./pages/decisions/Conflicts";
 import Meldeliste from "./pages/reports/Meldeliste";
 import ColourMixChart from "./pages/reports/ColourMixChart";
@@ -76,6 +77,7 @@ export default function App() {
             <Route path="/decisions/pool"         element={<OpenPool />} />
             <Route path="/decisions/queue"        element={<MyQueue />} />
             <Route path="/decisions/history"      element={<MyHistory />} />
+            <Route path="/decisions/my-summary"   element={<MySummaryReport />} />
             
             {/* Legacy redirects */}
             <Route path="/decisions/mine"         element={<Navigate to="/decisions/history" replace />} />

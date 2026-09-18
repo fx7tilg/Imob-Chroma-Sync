@@ -1,4 +1,4 @@
-"""Chat service - powers the in-app assistant that guides users."""
+"""Chat service - powers the in-app assistant that guides users (we wanted to make something like AISHA)."""
 
 from __future__ import annotations
 

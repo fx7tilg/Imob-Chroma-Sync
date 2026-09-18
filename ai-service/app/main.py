@@ -1,4 +1,8 @@
-"""Chroma Sync AI service - one FastAPI app, three endpoints.
+"""Chroma Sync AI service - one FastAPI app, 3 endpoints 
+
+(we guard every LLM boundary with Pydantic becuase we are not building just MVP, 
+
+we are building something special for VW group).
 
 Every LLM boundary is guarded by Pydantic. Invalid JSON is retried once and
 then falls back to a safe, labelled result so the UI never breaks.

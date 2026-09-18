@@ -551,6 +551,46 @@ a.btn-accent:hover {
    Utility
    ══════════════════════════════════════ */
 
+.prose strong {
+  color: var(--text-0);
+  font-weight: 600;
+}
+.prose blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 1.5em 0;
+  padding: 1em 1.5em;
+  background: linear-gradient(90deg, rgba(77, 166, 255, 0.08), transparent);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  color: var(--text-1);
+  font-style: italic;
+  font-size: 0.95em;
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.875rem;
+}
+.prose th {
+  background: var(--bg-2);
+  color: var(--text-0);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--border);
+}
+.prose td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-1);
+}
+.prose tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.01);
+}
+[data-theme='light'] .prose tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
 .gradient-text {
   background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 50%, var(--purple) 100%);
   -webkit-background-clip: text;
@@ -619,6 +659,41 @@ a.btn-accent:hover {
 .markdown-content strong {
   color: var(--text-0);
   font-weight: 600;
+}
+.markdown-content blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 1.5em 0;
+  padding: 1em 1.5em;
+  background: linear-gradient(90deg, rgba(77, 166, 255, 0.08), transparent);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  color: var(--text-1);
+  font-style: italic;
+  font-size: 0.95em;
+}
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.875rem;
+}
+.markdown-content th {
+  background: var(--bg-2);
+  color: var(--text-0);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--border);
+}
+.markdown-content td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-1);
+}
+.markdown-content tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.01);
+}
+[data-theme='light'] .markdown-content tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
 }
 
 /* AI Rotating Core Loader */

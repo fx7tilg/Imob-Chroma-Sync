@@ -1,7 +1,7 @@
--- Chroma Sync - Hackathon seed v2 (organiser dataset alignment)
+-- Chroma Sync - Hackathon seed as per given data (organiser dataset alignment)
 --
 -- Populates the exact entities the organiser workbook specifies:
---   * 12 users USR-01..USR-12 (4 teams x 3 roles) - password: chroma-demo
+--   * 12 users USR-01..USR-12 (4 teams x 3 roles) - password: chroma-demo (we did this to make things simple)
 --   * 12 components CMP-01..CMP-12 (with zones)
 --   * 22 DiMa materials MAT-1001..MAT-1022 (with seeded defects)
 --   * 19 VRED rows VRD-001..VRD-019 (VRD-013 = Mismatch)
@@ -13,9 +13,9 @@
  
 set search_path = public, extensions;
  
--- ---------------------------------------------------------------------------
+
 -- Users - 4 teams x 3 roles
--- ---------------------------------------------------------------------------
+
  
 create or replace function _seed_user(
     p_email     text,

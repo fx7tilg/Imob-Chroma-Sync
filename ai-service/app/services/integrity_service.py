@@ -7,7 +7,7 @@ from the DiMa / VRED / RBAC data by inspection.
 Detector output uses the same shape as ``ConflictItem`` so the results can be
 emitted straight into the ``conflicts`` table without translation.
 
-Fair-play rule: detectors query by relationship (material_reference not in
+Fair-play rule(as per my friend venky): detectors query by relationship (material_reference not in
 materials, visual_match = mismatch, role != 'approver'), never by literal ID.
 """
 

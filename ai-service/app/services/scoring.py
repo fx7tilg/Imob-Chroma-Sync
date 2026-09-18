@@ -4,7 +4,7 @@ Every rating produced here must be reproducible from a spreadsheet - no LLM
 involvement. The LLM narrator (readiness_service.evaluate) is called separately
 and may only write the human-readable `reason` field.
 
-Aggregation rule (organiser spec §5): worst colour across all applicable
+Aggregation rule (as per our hackathon): worst colour across all applicable
 dimensions. Any Red -> Red; else any Yellow -> Yellow; else Green.
 """
 
@@ -27,9 +27,7 @@ from ..schemas import (
 Rating = str  # "green" | "yellow" | "red"
 
 
-# ---------------------------------------------------------------------------
 # RC-1 Material lifecycle (DiMa)
-# ---------------------------------------------------------------------------
 
 
 def score_rc1(decision: Decision, material: Material | None) -> CriterionResult:
@@ -57,10 +55,7 @@ def score_rc1(decision: Decision, material: Material | None) -> CriterionResult:
         evidence={"material_code": material.code, "lifecycle_status": None},
     )
 
-
-# ---------------------------------------------------------------------------
 # RC-2 Compliance (DiMa)
-# ---------------------------------------------------------------------------
 
 
 def score_rc2(material: Material | None) -> CriterionResult:
@@ -88,11 +83,7 @@ def score_rc2(material: Material | None) -> CriterionResult:
         evidence={"material_code": material.code, "compliance_status": "fail"},
     )
 
-
-# ---------------------------------------------------------------------------
 # RC-3 Lead time (DiMa) - thresholds fixed by organiser: ≤12 / 13–20 / >20 weeks
-# ---------------------------------------------------------------------------
-
 
 def score_rc3(material: Material | None) -> CriterionResult:
     weeks = material.lead_time_weeks if material else None
@@ -120,11 +111,7 @@ def score_rc3(material: Material | None) -> CriterionResult:
         evidence={"lead_time_weeks": weeks, "threshold": 20},
     )
 
-
-# ---------------------------------------------------------------------------
 # RC-4 Visual readiness (VRED)
-# ---------------------------------------------------------------------------
-
 
 def score_rc4(decision: Decision, vred_rows: Iterable[VredRow]) -> CriterionResult:
     component = decision.component_id
@@ -168,11 +155,7 @@ def score_rc4(decision: Decision, vred_rows: Iterable[VredRow]) -> CriterionResu
         evidence={"component_id": component, "material_code": material_code},
     )
 
-
-# ---------------------------------------------------------------------------
 # RC-5 Approval & RBAC
-# ---------------------------------------------------------------------------
-
 
 def score_rc5(req: ReadinessRequest) -> CriterionResult:
     status = req.decision.status
@@ -247,10 +230,7 @@ def score_rc5(req: ReadinessRequest) -> CriterionResult:
     )
 
 
-# ---------------------------------------------------------------------------
 # RC-6 Cross-area conflict
-# ---------------------------------------------------------------------------
-
 
 def score_rc6(decision: Decision, siblings: Iterable[Decision]) -> CriterionResult:
     component = decision.component_id or decision.component_name
@@ -409,10 +389,8 @@ def _is_baseline_decision(decision: Decision, siblings: list[Decision], conflict
     # If we made it through all conflicting siblings without finding an older or approved one, we are the baseline.
     return True
 
-
-# ---------------------------------------------------------------------------
 # Aggregation - worst-colour rule
-# ---------------------------------------------------------------------------
+
 
 _ORDER = {"green": 0, "yellow": 1, "red": 2}
 
@@ -425,9 +403,7 @@ def worst_colour(*ratings: Rating) -> Rating:
     return worst
 
 
-# ---------------------------------------------------------------------------
 # Top-level entry point
-# ---------------------------------------------------------------------------
 
 
 def score_all(req: ReadinessRequest) -> dict[str, CriterionResult]:

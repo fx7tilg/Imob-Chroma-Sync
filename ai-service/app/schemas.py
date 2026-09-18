@@ -1,10 +1,10 @@
-"""Pydantic schemas - every LLM boundary is validated here."""
+"""Pydantic schemas - every LLM boundary is validated here as we did very precisely."""
 
 from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 Team = Literal["design", "engineering", "procurement", "quality"]
 DecisionStatus = Literal["draft", "submitted", "under_review", "approved", "rejected"]
@@ -18,6 +18,8 @@ VredVisualMatch = Literal["match", "mismatch"]
 
 
 class Decision(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
     id: str
     component_name: str
     component_id: Optional[str] = None
@@ -70,6 +72,14 @@ class Decision(BaseModel):
     owner_team: Team
     ai_rating: Optional[AiRating] = None
     ai_reason: Optional[str] = None
+    # External refs
+    dima_material_reference: Optional[str] = None
+    vred_render_url: Optional[str] = None
+    reference_documents: list[dict[str, Any]] = Field(default_factory=list)
+    # Metadata
+    created_by: Optional[str] = None
+    submitted_by: Optional[str] = None
+    submitted_at: Optional[str] = None
     version: int = 1
 
 
@@ -116,11 +126,7 @@ class Approval(BaseModel):
     decided_at: Optional[str] = None
     version: int = 1
 
-
-# ---------------------------------------------------------------------------
 # Readiness
-# ---------------------------------------------------------------------------
-
 
 class ReadinessRequest(BaseModel):
     decision: Decision
@@ -158,10 +164,8 @@ class ReadinessResponse(BaseModel):
     rc6_conflict: Optional[CriterionResult] = None
 
 
-# ---------------------------------------------------------------------------
-# Conflicts
-# ---------------------------------------------------------------------------
 
+# Conflicts
 
 class ConflictRequest(BaseModel):
     business_area: str
@@ -184,11 +188,7 @@ class ConflictItem(BaseModel):
 class ConflictResponse(BaseModel):
     conflicts: list[ConflictItem] = Field(default_factory=list)
 
-
-# ---------------------------------------------------------------------------
 # Summaries (for Meldeliste + Colour-Mix-Chart)
-# ---------------------------------------------------------------------------
-
 
 class SummaryRequest(BaseModel):
     decisions: list[Decision]
@@ -207,7 +207,7 @@ class MySummaryRequest(BaseModel):
     decisions: list[Decision]
 
 class MySummaryResponse(BaseModel):
-    summary_markdown: str
+    summary_json: dict[str, Any]
     is_fallback: bool = False
 
 class ReportSummaryRequest(BaseModel):
@@ -255,10 +255,7 @@ class PriorityBriefingResponse(BaseModel):
     overview: str = ""
     structured_audit: Optional[dict[str, Any]] = None
 
-# ---------------------------------------------------------------------------
 # Chat assistant
-# ---------------------------------------------------------------------------
-
 
 ChatRole = Literal["user", "assistant"]
 
@@ -279,11 +276,7 @@ class ChatResponse(BaseModel):
     reply: str
 
 
-
-# ---------------------------------------------------------------------------
-# Internal helper - the raw shape we expect from the LLM
-# ---------------------------------------------------------------------------
-
+# Internal helper - the raw shape we expect from the LLM (took 2 min to write tbh)
 
 class RawLlmReadiness(BaseModel):
     rating: AiRating

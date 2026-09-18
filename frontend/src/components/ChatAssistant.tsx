@@ -23,6 +23,10 @@ export default function ChatAssistant() {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
+  
+  const goHome = () => {
+    setMessages([GREETING]);
+  };
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -215,22 +219,42 @@ export default function ChatAssistant() {
             }}
           >
             {messages.map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  maxWidth: "85%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  background: m.role === "user" ? "var(--accent)" : "var(--surface-2)",
-                  color: m.role === "user" ? "#fff" : "var(--text)",
-                  border: m.role === "user" ? "none" : "1px solid var(--border)",
-                  whiteSpace: "pre-wrap"
-                }}
-              >
-                {m.content}
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6, alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%" }}>
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    background: m.role === "user" ? "var(--accent)" : "var(--surface-2)",
+                    color: m.role === "user" ? "#fff" : "var(--text)",
+                    border: m.role === "user" ? "none" : "1px solid var(--border)",
+                    whiteSpace: "pre-wrap"
+                  }}
+                >
+                  {m.content}
+                </div>
+                {m.role === "assistant" && i > 0 && i === messages.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={goHome}
+                    style={{
+                      alignSelf: "flex-start",
+                      padding: "6px 12px",
+                      borderRadius: 16,
+                      border: "1px solid var(--border)",
+                      background: "var(--surface)",
+                      color: "var(--text-1)",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4
+                    }}
+                  >
+                    <Home size={12} /> Go Home
+                  </button>
+                )}
               </div>
             ))}
             {busy && (
