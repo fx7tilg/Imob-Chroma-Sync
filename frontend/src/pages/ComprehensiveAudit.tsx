@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Shield, AlertTriangle, Play, Download, Clock, ArrowLeft, Zap, Users, Activity, CheckCircle2, FileText, Share2, Search, ArrowRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -10,10 +10,12 @@ import type { ComprehensiveAudit, Decision, Approval, Conflict } from "../types/
 import LogoMark from "../components/LogoMark";
 import { useAuth } from "../auth/AuthContext";
 import { checkAndUseCredit } from "../lib/credits";
+import { downloadElementAsPdf } from "../lib/pdfExport";
 
 export default function ComprehensiveAuditPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const reportRef = useRef<HTMLDivElement>(null);
   
   const [audit, setAudit] = useState<ComprehensiveAudit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,8 +109,9 @@ export default function ComprehensiveAuditPage() {
     }
   }
 
-  function handlePrint() {
-    window.print();
+  async function handlePrint() {
+    if (!reportRef.current) return;
+    await downloadElementAsPdf(reportRef.current, "Comprehensive-Audit");
   }
 
   if (loading) {
@@ -199,7 +202,7 @@ export default function ComprehensiveAuditPage() {
         </div>
       ) : (
         audit && !running && audit.status === "completed" && (
-          <div className="assessment-document" style={{ 
+          <div className="assessment-document" ref={reportRef} style={{ 
             background: "var(--bg-0)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)",
             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
           }}>
