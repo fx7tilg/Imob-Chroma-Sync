@@ -437,7 +437,8 @@ class LlmaasClient:
         self._client = AsyncOpenAI(
             api_key="placeholder",  # replaced per-call via with_options() once a real token is fetched
             base_url=os.environ.get("LLMAAS_BASE_URL", "https://llmapi.ai.vwgroup.com"),
-            default_headers={"X-LLM-API-CLIENT-ID": f"Bearer {client_id}"},
+            # default_headers={"X-LLM-API-CLIENT-ID": f"Bearer {client_id}"},
+             default_headers={"X-LLM-API-CLIENT-ID": f"Bearer {os.getenv('LLMAAS_API_KEY')}"}
         )
 
     async def _authed_client(self):
