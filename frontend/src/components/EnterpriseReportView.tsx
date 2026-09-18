@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, Download, Clock, AlertTriangle, FileText, Activity, AlertCircle, Search, ArrowRight, Shield } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -8,6 +8,7 @@ import { runAudit, type AuditResult } from "../lib/auditSignals";
 import type { EnterpriseReport, EnterpriseReportType, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "./LogoMark";
 import { checkAndUseCredit } from "../lib/credits";
+import { downloadElementAsPdf } from "../lib/pdfExport";
 
 interface Props {
   reportType: EnterpriseReportType;
@@ -19,6 +20,7 @@ interface Props {
 
 export default function EnterpriseReportView({ reportType, title, decisions, approvals, conflicts }: Props) {
   const navigate = useNavigate();
+  const reportRef = useRef<HTMLDivElement>(null);
   const [report, setReport] = useState<EnterpriseReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -72,8 +74,9 @@ export default function EnterpriseReportView({ reportType, title, decisions, app
     }
   }
 
-  function handlePrint() {
-    window.print();
+  async function handlePrint() {
+    if (!reportRef.current) return;
+    await downloadElementAsPdf(reportRef.current, `Enterprise-Report-${title}`);
   }
 
   if (loading) {
@@ -152,7 +155,7 @@ export default function EnterpriseReportView({ reportType, title, decisions, app
         </div>
       ) : (
         report && !running && report.status === "completed" && (
-          <div className="assessment-document" style={{ 
+          <div className="assessment-document" ref={reportRef} style={{ 
             background: "var(--bg-0)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)",
             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
           }}>

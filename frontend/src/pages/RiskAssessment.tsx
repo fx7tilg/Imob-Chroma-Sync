@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Shield, AlertTriangle, Play, Download, Clock, CheckCircle2, ChevronRight, Check, ChevronDown, ChevronUp, EyeOff, Eye, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
@@ -10,10 +10,12 @@ import type { RiskAssessment as RiskAssessmentType, Decision, Approval, Conflict
 import LogoMark from "../components/LogoMark";
 import { useAuth } from "../auth/AuthContext";
 import { checkAndUseCredit } from "../lib/credits";
+import { downloadElementAsPdf } from "../lib/pdfExport";
 
 export default function RiskAssessment() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const reportRef = useRef<HTMLDivElement>(null);
   const [assessment, setAssessment] = useState<RiskAssessmentType | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -115,8 +117,9 @@ export default function RiskAssessment() {
     }
   }
 
-  function handlePrint() {
-    window.print();
+  async function handlePrint() {
+    if (!reportRef.current) return;
+    await downloadElementAsPdf(reportRef.current, "Risk-Assessment");
   }
 
   if (loading) {
@@ -207,7 +210,7 @@ export default function RiskAssessment() {
         </div>
       ) : (
         assessment && !running && assessment.status === "completed" && (
-          <div className="assessment-document" style={{ 
+          <div className="assessment-document" ref={reportRef} style={{ 
             background: "var(--bg-0)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)",
             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
           }}>
