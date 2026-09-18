@@ -10,13 +10,13 @@
 --
 -- All detectors query by relationship, never by literal ID, so this seed
 -- can be shuffled without breaking anything.
-
+ 
 set search_path = public, extensions;
-
+ 
 -- ---------------------------------------------------------------------------
 -- Users - 4 teams x 3 roles
 -- ---------------------------------------------------------------------------
-
+ 
 create or replace function _seed_user(
     p_email     text,
     p_full_name text,
@@ -37,9 +37,9 @@ begin
          where id = v_id;
         return v_id;
     end if;
-
+ 
     v_id := gen_random_uuid();
-
+ 
     insert into auth.users (
         id, instance_id, aud, role, email, encrypted_password,
         email_confirmed_at, created_at, updated_at,
@@ -57,14 +57,21 @@ begin
         jsonb_build_object('full_name', p_full_name),
         false, '', '', '', ''
     );
-
+ 
+    -- The on_auth_user_created trigger may have already created a bare profile
+    -- row, so upsert to fill in role/team/name rather than colliding on the PK.
     insert into public.profiles (id, full_name, team, role, is_project_lead)
-    values (v_id, p_full_name, p_team, p_role, p_is_lead);
-
+    values (v_id, p_full_name, p_team, p_role, p_is_lead)
+    on conflict (id) do update set
+        full_name       = excluded.full_name,
+        team            = excluded.team,
+        role            = excluded.role,
+        is_project_lead = excluded.is_project_lead;
+ 
     return v_id;
 end;
 $$;
-
+ 
 do $$
 declare
     v_dsn_ed  uuid; v_dsn_ap uuid; v_dsn_vw uuid;  -- USR-01..03  design
@@ -85,11 +92,11 @@ begin
     v_qua_ed := _seed_user('quality.editor@chroma.test',      'Quinn Quality (Editor)',     'quality',      'editor');
     v_qua_ap := _seed_user('quality.approver@chroma.test',    'Quan Quality (Approver)',    'quality',      'approver');
     v_qua_vw := _seed_user('quality.viewer@chroma.test',      'Qi Quality (Viewer)',        'quality',      'viewer');
-    
+   
     -- Legacy / generic users requested by user
     perform _seed_user('admin@chroma.test', 'System Admin', null, 'editor', true);
     perform _seed_user('viewer@chroma.test', 'Generic Viewer', null, 'viewer');
-
+ 
     insert into components (id, name, zone, vehicle_program) values
         ('CMP-01', 'Instrument Panel',    'Interior Upper',   'MEB-Program'),
         ('CMP-02', 'Door Trim (Front)',   'Interior Side',    'MEB-Program'),
@@ -104,13 +111,13 @@ begin
         ('CMP-11', 'Air Vent Surround',   'Interior Upper',   'MEB-Program'),
         ('CMP-12', 'Floor Carpet',        'Flooring',         'MEB-Program')
     on conflict (id) do nothing;
-
+ 
     -- Deliberate defects seeded below:
     --   MAT-1004 lifecycle_status = deprecated
     --   MAT-1007 compliance_status = fail
     --   MAT-1010 lifecycle_status = deprecated
     --   MAT-1013 lead_time_weeks  = 24 (> 20)
-
+ 
     insert into materials (
         code, display_name, gloss, substrate,
         temperature_min_c, temperature_max_c, compatibility_notes,
@@ -150,7 +157,7 @@ begin
         material_type     = excluded.material_type,
         supplier_code     = excluded.supplier_code,
         vred_render_url   = excluded.vred_render_url;
-
+ 
     insert into vred_visualizations (id, component_id, material_code, scene_reference, render_status, last_rendered, visual_match) values
         ('VRD-001','CMP-01','MAT-1013','scene_cmp01_1', 'rendered','2026-08-06','match'),
         ('VRD-002','CMP-02','MAT-1014','scene_cmp02_2', 'rendered','2026-08-14','match'),
@@ -177,14 +184,14 @@ begin
         render_status = excluded.render_status,
         last_rendered = excluded.last_rendered,
         visual_match  = excluded.visual_match;
-
+ 
     -- ---- Decisions block removed for fresh testing -----------------------
-
+ 
 end $$;
-
+ 
 -- Add demo PKI PIN support: a simple text column to store card PINs for hackathon demo.
 alter table public.profiles add column if not exists pki_pin text;
-
+ 
 -- Map demo PINs to the seeded users so each user can authenticate via PKI card in the demo.
 update public.profiles p set pki_pin = '1001'
  from auth.users u where u.email = 'design.editor@chroma.test' and p.id = u.id;
@@ -210,9 +217,9 @@ update public.profiles p set pki_pin = '1011'
  from auth.users u where u.email = 'quality.approver@chroma.test' and p.id = u.id;
 update public.profiles p set pki_pin = '1012'
  from auth.users u where u.email = 'quality.viewer@chroma.test' and p.id = u.id;
-
+ 
 -- Admin / generic pins
 update public.profiles p set pki_pin = '9999' from auth.users u where u.email = 'admin@chroma.test' and p.id = u.id;
 update public.profiles p set pki_pin = '0000' from auth.users u where u.email = 'viewer@chroma.test' and p.id = u.id;
-
+ 
 drop function _seed_user(text, text, team_t, profile_role_t, boolean);
