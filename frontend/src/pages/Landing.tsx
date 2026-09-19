@@ -975,38 +975,51 @@ function AI() {
           </p>
         </Reveal>
         <Reveal>
-          <div className="cs-ai-grid">
+          <div className="cs-ai-grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <div className="cs-ai-card">
-              <div className="k">01 · Readiness</div>
-              <h4>Is this decision ready?</h4>
+              <div className="k">01 · On Submission Scan</div>
+              <h4>Trigger</h4>
               <div className="cs-ai-result">
-                <span className="tag" style={{ color: "#c8a86a" }}>Caution</span>
-                Design and engineering have approved. Procurement approval is
-                still pending - Q3 supply for MAT-7892 is unconfirmed.
+                When a Designer clicks "Submit Decision", the AI immediately performs a full 6-point Readiness Criteria (RC) scan before the decision enters the review pipeline. If any RC evaluates to Red, the submission is automatically rejected.
               </div>
             </div>
             <div className="cs-ai-card">
-              <div className="k">02 · Conflict detection</div>
-              <h4>What doesn&apos;t agree?</h4>
-              <div className="cs-ai-result red">
-                <span className="tag">Conflict</span>
-                Colour CS-114 on Door Panel A specifies gloss 45. B-Pillar in
-                the same program requires gloss 60.
+              <div className="k">02 · AI Rating Assignment</div>
+              <h4>Green / Yellow / Red</h4>
+              <div className="cs-ai-result">
+                <strong>Green:</strong> All 6 Readiness Criteria satisfied.<br/>
+                <strong>Yellow:</strong> No critical blockers, but warnings present (e.g., missing data).<br/>
+                <strong>Red:</strong> Critical failure requiring immediate attention.
               </div>
             </div>
             <div className="cs-ai-card">
-              <div className="k">03 · Reporting</div>
-              <h4>What is ready to report?</h4>
-              <div className="cs-ai-docs">
-                <div>Meldeliste.xlsx</div>
-                <div>Colour-Mix-Chart.pdf</div>
-                <div>AI-Readiness-Report.pdf</div>
-                <div>Supply-Chain-Report.pdf</div>
-                <div>Compliance-Audit.pdf</div>
+              <div className="k">03 · Conflict and Duplicate Detection</div>
+              <h4>Same Component & Lifecycle Checks</h4>
+              <div className="cs-ai-result">
+                Flags conflicts if two decisions target the same component with different specs, or if one uses an Active material and another a Deprecated one to prevent supply chain disruption.
+              </div>
+            </div>
+            <div className="cs-ai-card">
+              <div className="k">04 · Version Delta Validation</div>
+              <h4>On Resubmission</h4>
+              <div className="cs-ai-result">
+                When a rejected decision is resubmitted, the AI compares exact field changes to verify if they resolve the original rejection reason. If not, it blocks Quality approval.
               </div>
             </div>
           </div>
-          <p className="cs-ai-statement">
+          
+          <div style={{ marginTop: "2rem", padding: "1.5rem", background: "rgba(255,255,255,0.03)", borderRadius: "var(--r-md)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <div className="k" style={{ color: "#fff", marginBottom: "1rem" }}>Data Sources Used by the AI</div>
+            <div className="cs-ai-docs">
+              <div><strong>DiMa Master List:</strong> Lifecycle status and supplier info</div>
+              <div><strong>VRED Visual Validation:</strong> 3D render comparison for surface finish</div>
+              <div><strong>Approval Chain:</strong> RBAC-verified history</div>
+              <div><strong>Audit Log:</strong> Immutable field changes and timestamped transitions</div>
+              <div><strong>Conflict Graph:</strong> Real-time cross-reference of all decisions</div>
+            </div>
+          </div>
+
+          <p className="cs-ai-statement" style={{ marginTop: "3rem" }}>
             AI flags it. <span>People still decide.</span>
           </p>
         </Reveal>
@@ -1029,9 +1042,9 @@ function CrossBrandConflict() {
             Conflicts don&apos;t stop at department lines.
           </h2>
           <p className="cs-lead">
-            If two decisions in the same program start to disagree - even across
-            different components owned by different teams - Chroma Sync puts both
-            records side by side so someone can actually deal with it.
+            Imagine Team A is making the doors, and Team B is making the seats. If Team A uses a shiny black plastic and Team B uses a matte black plastic, nobody notices until the car is built. 
+            <br/><br/>
+            In Chroma Sync, we built a robotic security guard using AI. Every 30 minutes, it automatically wakes up and reads every single decision made across the entire company. When it finds a clash, it immediately flags it as a Conflict on the dashboard—silently, in the background, 24/7.
           </p>
         </Reveal>
         <Reveal>

@@ -203,7 +203,7 @@ export default function MaterialContext({ material, decision }: Props) {
           >
             {material.vred_render_url ? (
               <img 
-                src={material.vred_render_url} 
+                src={material.vred_render_url.includes('unsplash') ? '/vred_door_trim.png' : material.vred_render_url} 
                 alt="VRED 3D Render Preview" 
                 style={{ 
                   position: "absolute", top: 0, left: 0, width: "100%", height: "100%", 
