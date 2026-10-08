@@ -1,13 +1,24 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
-dotenv.config({ path: "c:/Users/ADITYA RAJ/Downloads/Chroma-Sync/frontend/.env.local" });
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
+// Local developer scratch script. Reads credentials from frontend/.env.local;
+// never hardcode them here.
+dotenv.config({ path: new URL(".env.local", import.meta.url).pathname });
+
+const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, TEST_USER_EMAIL, TEST_USER_PASSWORD } = process.env;
+if (!VITE_SUPABASE_URL || !VITE_SUPABASE_ANON_KEY) {
+  throw new Error("Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in frontend/.env.local");
+}
+if (!TEST_USER_EMAIL || !TEST_USER_PASSWORD) {
+  throw new Error("Set TEST_USER_EMAIL and TEST_USER_PASSWORD in the environment");
+}
+
+const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY);
 
 async function main() {
   const { data: user, error: authError } = await supabase.auth.signInWithPassword({
-    email: "designer1@chroma.com",
-    password: "password123"
+    email: TEST_USER_EMAIL,
+    password: TEST_USER_PASSWORD
   });
   if (authError) {
     console.error("Auth error:", authError);

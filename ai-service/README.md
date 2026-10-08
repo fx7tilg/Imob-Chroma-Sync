@@ -43,12 +43,41 @@ The token is fetched via OAuth client-credentials and cached in memory until
 shortly before it expires. Spend is estimated from response token usage and
 logged as a warning at 80% and 100% of `LLMAAS_BUDGET_USD`.
 
+## Security / required configuration
+
+Every endpoint except `GET /health` requires a bearer token. The service
+verifies Supabase-signed HS256 tokens with `SUPABASE_JWT_SECRET`, which covers
+both browser user tokens (`role=authenticated`) and the service-role key used
+by the Edge Functions (`role=service_role`) - no extra shared secret is needed.
+
+| Var | Default | Notes |
+|---|---|---|
+| `APP_ENV` | `development` | `production` enables fail-fast checks (see below) |
+| `SUPABASE_JWT_SECRET` | - | **Required in production.** Dashboard -> Settings -> API -> JWT Secret. If unset the service runs UNAUTHENTICATED. |
+| `AI_ALLOWED_ORIGINS` | localhost:5173 | **Required in production.** Comma-separated exact origins. Never `*`. |
+| `AI_RATE_LIMIT_REQUESTS` | `60` | Per-user sliding window; `service_role` callers are exempt |
+| `AI_RATE_LIMIT_WINDOW_SECONDS` | `60` | |
+| `AI_MAX_BODY_BYTES` | `1048576` | Requests above this get a 413 |
+| `LOG_LEVEL` | `INFO` | |
+
+With `APP_ENV=production` the service refuses to start if
+`SUPABASE_JWT_SECRET` or `AI_ALLOWED_ORIGINS` is missing, or if
+`LLM_PROVIDER=mock`. `GET /health` reports `degraded: true` while the mock
+provider is active.
+
+The in-process rate limiter is per-worker: with N uvicorn workers the
+effective limit is N x `AI_RATE_LIMIT_REQUESTS`. Use a shared store (Redis) or
+a gateway-level limit if you scale out.
+
 ## Test
 
 ```powershell
-pip install pytest
+pip install -r requirements.txt
 pytest
 ```
+
+`tests/conftest.py` disables `load_dotenv` so the suite can never pick up a
+developer `.env` and make live LLM calls.
 
 ## Design guarantees
 

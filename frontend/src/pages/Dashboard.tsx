@@ -30,8 +30,7 @@ export default function Dashboard() {
   const [aiRating, setAiRating] = useState<"green" | "yellow" | "red" | "">((searchParams.get("ai_rating") as any) || "");
   const [busy, setBusy] = useState(false);
   const [tableSearch, setTableSearch] = useState("");
-  const [showRiskAssessment, setShowRiskAssessment] = useState(false);
-  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+  const [, setAuditResult] = useState<AuditResult | null>(null);
 
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);

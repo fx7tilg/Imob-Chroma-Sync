@@ -618,6 +618,44 @@ npm run dev
 
 ---
 
+# Production deployment requirements
+
+> **Status: this project is not production-ready yet.** The items below are the
+> minimum configuration required before any internet-facing deployment. See
+> `PRODUCTION_READINESS_REPORT.md` for the full audit and the open blockers.
+
+## Required configuration
+
+| Component | Variable | Why |
+| --- | --- | --- |
+| AI service | `APP_ENV=production` | Enables fail-fast startup checks |
+| AI service | `SUPABASE_JWT_SECRET` | **Without it the AI service accepts unauthenticated requests** |
+| AI service | `AI_ALLOWED_ORIGINS` | Exact frontend origin(s); never `*` |
+| AI service | `LLM_PROVIDER` | Must not be `mock` |
+| Edge functions | `ALLOWED_ORIGINS` | Exact frontend origin(s) |
+| Edge functions | `ENABLE_PKI_DEMO_AUTH` | Leave **unset**. Setting it to `true` enables a demo PIN login. |
+| Frontend | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_AI_SERVICE_URL` | |
+| Frontend | `VITE_ENABLE_DEMO_LOGIN` | Leave **unset**. Enables the demo card sign-in. |
+| Supabase dashboard | Site URL | The real frontend origin - password-reset links are built from it |
+| Supabase dashboard | Confirm email | **Enable.** Otherwise anyone can register against an address they do not own. |
+
+`supabase/config.toml` configures the **local** stack only; the hosted project
+is configured in the dashboard.
+
+## Never run `supabase/seed.sql` against production
+
+It creates accounts that all share the password `chroma-demo` and assigns
+sequential demo card PINs (`1001`-`1012`, `9999`, `0000`). It is for local
+demos only.
+
+## Known drift
+
+`fix_rls.sql` in the repository root is applied by hand and is **not** part of
+the migration chain. Fold it into a migration before deploying, or the
+deployed policy set will not match the repository.
+
+---
+
  # Made by Aditya & Venky (Team Maximus AI)
 
  We built **Chroma Sync** for the **2026 Hackathon**.

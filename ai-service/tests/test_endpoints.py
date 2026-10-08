@@ -29,7 +29,10 @@ def _decision(id_="d1", **overrides):
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok"}
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["llm_provider"] == "mock"
+    assert body["degraded"] is True
 
 
 def test_readiness_returns_valid_shape():
@@ -69,10 +72,26 @@ def test_readiness_fallback_flags_when_fields_missing(monkeypatch):
 def test_conflicts_empty_when_single_decision():
     r = client.post(
         "/conflicts",
-        json={"business_area": "Interior - Front", "decisions": [_decision()]},
+        json={
+            "business_area": "Interior - Front",
+            "decisions": [_decision()],
+            # Without the master list the orphan-material detector fires, which
+            # is correct behaviour but not what this test is about.
+            "materials": [{"code": "MAT-7892", "display_name": "Soft-touch PP"}],
+        },
     )
     assert r.status_code == 200
     assert r.json() == {"conflicts": []}
+
+
+def test_conflicts_flags_material_missing_from_master_list():
+    r = client.post(
+        "/conflicts",
+        json={"business_area": "Interior - Front", "decisions": [_decision()], "materials": []},
+    )
+    assert r.status_code == 200
+    types = {c["conflict_type"] for c in r.json()["conflicts"]}
+    assert "orphan_material" in types
 
 
 def test_summaries_fallback_when_llm_returns_empty():

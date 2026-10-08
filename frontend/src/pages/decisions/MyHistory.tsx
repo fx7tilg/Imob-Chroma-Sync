@@ -7,9 +7,8 @@ import type { Decision, DecisionStatus } from "../../types/db";
 import RatingBadge from "../../components/RatingBadge";
 import SearchableSelect from "../../components/ui/SearchableSelect";
 import MySummaryModal from "../../components/MySummaryModal";
-import { Plus, Sparkles } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Link } from "react-router-dom";
-import LogoMark from "../../components/LogoMark";
 
 const STATUS_BADGE: Record<string, string> = {
   draft: "badge-purple",

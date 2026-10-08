@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, AlertTriangle, Shield, CheckCircle2, TrendingUp, Download, Play } from "lucide-react";
+import { ArrowLeft, Sparkles, AlertTriangle, CheckCircle2, TrendingUp, Download, Play } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../auth/AuthContext";

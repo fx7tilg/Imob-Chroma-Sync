@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AlertTriangle, X, Shield, Zap, Aperture, Clock } from "lucide-react";
+import { AlertTriangle, X, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Decision, Approval, Conflict } from "../types/db";
 import { getUsesRemaining, consumeUse, getMaxDailyUses, restoreUse } from "../lib/aiQuota";

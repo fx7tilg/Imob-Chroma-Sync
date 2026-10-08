@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import {
   Package, Download, Loader2, AlertTriangle, TrendingUp, ShieldAlert
 } from "lucide-react";
-import LogoMark from "../../components/LogoMark";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart, Pie, Cell

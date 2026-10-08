@@ -10,14 +10,9 @@ import {
   BarChart3,
   FileText,
   Activity,
-  Loader2,
-  Printer,
   TrendingUp,
-  ChevronRight,
   Search,
-  XCircle,
 } from "lucide-react";
-import LogoMark from "../components/LogoMark";
 import {
   PieChart,
   Pie,
@@ -98,16 +93,6 @@ function formatSyncTime(iso: string | null | undefined) {
   return `Synced ${dateStr}, ${timeStr}`;
 }
 
-function formatAuditTime(iso: string | null | undefined) {
-  if (!iso) return "";
-  const date = new Date(iso);
-  const diff = (Date.now() - date.getTime()) / 1000;
-  if (diff < 60) return "Just now";
-  if (diff < 3600) return `${Math.round(diff / 60)} min ago`;
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) +
-    ", " + date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 type JoinedConflict = Conflict & {
   decision_a: { component_name: string; business_area: string };
   decision_b: { component_name: string };
@@ -150,19 +135,6 @@ const PremiumTooltip = ({ active, payload }: any) => {
   }
   return null;
 };
-
-/* ══════════════════════════════════════════════════════════
-   Severity Badge
-   ══════════════════════════════════════════════════════════ */
-function SeverityBadge({ severity }: { severity: string }) {
-  const config: Record<string, { label: string; cls: string }> = {
-    critical: { label: "Critical", cls: "badge-red" },
-    attention: { label: "Attention", cls: "badge-amber" },
-    on_track: { label: "On Track", cls: "badge-green" },
-  };
-  const c = config[severity] || config.attention;
-  return <span className={`badge ${c.cls}`} style={{ fontSize: "0.625rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>;
-}
 
 /* ══════════════════════════════════════════════════════════
    DASHBOARD HOME - Executive Command Centre

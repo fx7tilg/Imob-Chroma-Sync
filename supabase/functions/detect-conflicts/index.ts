@@ -4,15 +4,20 @@
 // and asks the FastAPI /conflicts endpoint to identify mismatches.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import {
+  aiAuthHeaders,
+  fetchWithTimeout,
+  isServiceCaller,
+  serviceClient
+} from "../_shared/security.ts";
 
 const AI_URL = Deno.env.get("AI_SERVICE_URL") ?? "http://host.docker.internal:8000";
 
-serve(async () => {
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+serve(async (req) => {
+  // Scheduled job: only pg_cron/pg_net, which carry the service-role key.
+  if (!isServiceCaller(req)) return json({ error: "unauthorized" }, 401);
+
+  const supabase = serviceClient();
 
   const { data: decisions } = await supabase
     .from("decisions")
@@ -50,11 +55,15 @@ serve(async () => {
     }
 
     try {
-      const res = await fetch(`${AI_URL}/conflicts`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ business_area: area, decisions: ds })
-      });
+      const res = await fetchWithTimeout(
+        `${AI_URL}/conflicts`,
+        {
+          method: "POST",
+          headers: aiAuthHeaders(),
+          body: JSON.stringify({ business_area: area, decisions: ds })
+        },
+        60_000
+      );
       // Advance the watermark only once the call has actually been made,
       // so a mid-scan change never gets masked by a later skip.
       await supabase
@@ -82,8 +91,8 @@ serve(async () => {
         await supabase.from("conflicts").insert(c);
         inserted++;
       }
-    } catch {
-      // fall through
+    } catch (e) {
+      console.error("conflict scan failed for area", area, e);
     }
   }
 

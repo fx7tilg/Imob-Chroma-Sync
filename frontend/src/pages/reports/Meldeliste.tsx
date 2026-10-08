@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, Loader2, Shield, ArrowUpDown } from "lucide-react";
-import LogoMark from "../../components/LogoMark";
 import { showToast } from "../../components/ui/Toast";
 import PermissionGate from "../../components/auth/PermissionGate";
 import { supabase } from "../../lib/supabase";

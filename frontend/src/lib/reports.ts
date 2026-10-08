@@ -1,20 +1,17 @@
 import ExcelJS from "exceljs";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { AI_SERVICE_URL } from "./supabase";
+import { aiPost } from "./aiClient";
 import type { Decision, MasterColourCode } from "../types/db";
 import { supabase } from "./supabase";
 
 async function summariseRecords(records: Decision[]): Promise<Record<string, string>> {
   if (records.length === 0) return {};
   try {
-    const res = await fetch(`${AI_SERVICE_URL}/summarise`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ decisions: records })
-    });
-    if (!res.ok) throw new Error(`AI ${res.status}`);
-    const data = (await res.json()) as { summaries: { id: string; summary: string }[] };
+    const data = await aiPost<{ summaries: { id: string; summary: string }[] }>(
+      "/summarise",
+      { decisions: records }
+    );
     return Object.fromEntries(data.summaries.map((s) => [s.id, s.summary]));
   } catch {
     return Object.fromEntries(

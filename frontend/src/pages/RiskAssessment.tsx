@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState, useMemo } from "react";
-import { Shield, AlertTriangle, Play, Download, Clock, CheckCircle2, ChevronRight, Check, ChevronDown, ChevronUp, EyeOff, Eye, ArrowLeft } from "lucide-react";
+import { Shield, AlertTriangle, Play, Download, Clock, CheckCircle2, EyeOff, Eye, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "../lib/supabase";
 import { fetchLatestAssessment, runNewRiskAssessment } from "../lib/riskAssessment";
 import { computeSnapshotHash } from "../lib/hash";
-import { runAudit, type AuditResult } from "../lib/auditSignals";
+import { runAudit } from "../lib/auditSignals";
 import type { RiskAssessment as RiskAssessmentType, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "../components/LogoMark";
-import { useAuth } from "../auth/AuthContext";
 import { checkAndUseCredit } from "../lib/credits";
 import { downloadElementAsPdf } from "../lib/pdfExport";
 
 export default function RiskAssessment() {
-  const { profile } = useAuth();
   const navigate = useNavigate();
   const reportRef = useRef<HTMLDivElement>(null);
   const [assessment, setAssessment] = useState<RiskAssessmentType | null>(null);
@@ -99,7 +97,7 @@ export default function RiskAssessment() {
   async function handleRunNew() {
     if (!auditResult) return;
 
-    const { allowed, remaining } = await checkAndUseCredit("risk_assessment");
+    const { allowed } = await checkAndUseCredit("risk_assessment");
     if (!allowed) {
       setError("You have exhausted your 3 credits for Risk Assessment today.");
       return;

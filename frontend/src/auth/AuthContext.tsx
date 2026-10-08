@@ -27,8 +27,13 @@ interface AuthState {
   signOut: () => Promise<void>;
   signInWithPKI: (pin: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  devBypassLogin: (role: RoleKey) => void;
 }
+
+// Demo card-reader sign-in. It maps a PIN to a seeded account that shares a
+// well-known password, so it is only ever enabled for local demos and is
+// compiled out unless VITE_ENABLE_DEMO_LOGIN is explicitly set.
+const DEMO_LOGIN_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true";
 
 const AuthCtx = createContext<AuthState | null>(null);
 
@@ -53,8 +58,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setProfile(null);
       return;
     }
-    // Skip Supabase fetch for dev-bypass mock sessions.
-    if (session.access_token === "mock-token") return;
+    // Skip the profile fetch until Supabase has issued a real session.
     supabase
       .from("profiles")
       .select("*")
@@ -80,19 +84,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
     },
-    signUp: async (email, password, fullName, team, isProjectLead) => {
+    signUp: async (email, password, fullName, team, _isProjectLead) => {
+      // is_project_lead is deliberately NOT forwarded: handle_new_user() forces
+      // it to false so a self-service signup cannot grant itself admin rights.
+      // Elevation is done by an existing project lead via the admin screen.
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: fullName, team, is_project_lead: isProjectLead }
+          data: { full_name: fullName, team }
         }
       });
       if (error) throw error;
     },
     signInWithPKI: async (pin: string) => {
-      // Demo PKI card auth: map the card PIN to a seeded account and perform a
-      // real password sign-in (all demo users share the password "chroma-demo").
+      if (!DEMO_LOGIN_ENABLED) throw new Error("PKI card sign-in is not available");
+      const demoPassword = import.meta.env.VITE_DEMO_PASSWORD;
+      if (!demoPassword) throw new Error("PKI card sign-in is not configured");
       const PKI_PIN_MAP: Record<string, string> = {
         "1001": "design.editor@chroma.test",
         "1002": "design.approver@chroma.test",
@@ -111,8 +119,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       };
       const email = PKI_PIN_MAP[pin.trim()];
       if (!email) throw new Error("Invalid PKI card PIN");
-      const { error } = await supabase.auth.signInWithPassword({ email, password: "chroma-demo" });
-      if (error) throw new Error("PKI sign-in failed: " + error.message);
+      const { error } = await supabase.auth.signInWithPassword({ email, password: demoPassword });
+      if (error) throw new Error("PKI sign-in failed");
     },
     resetPassword: async (email: string) => {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -121,40 +129,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (error) throw error;
     },
     signOut: async () => {
-      if (session?.access_token === "mock-token") {
-        setSession(null);
-        setProfile(null);
-        return;
-      }
       await supabase.auth.signOut();
-    },
-    devBypassLogin: (roleKey: RoleKey) => {
-      const mockId = "dev-" + Math.random().toString(36).substring(2, 11);
-      const isLead = roleKey === "project_admin";
-      let team: Team | null = null;
-      let roleStr: any = "viewer";
-      if (roleKey === "project_admin") {
-        roleStr = "editor";
-      } else if ((roleKey as string) !== "viewer") {
-        const parts = roleKey.split("_");
-        team = parts[0] as Team;
-        roleStr = parts[1];
-      }
-      const mockSession = {
-        user: { id: mockId, email: `${roleKey}@chroma.test` },
-        access_token: "mock-token",
-        token_type: "bearer"
-      } as unknown as Session;
-      setSession(mockSession);
-      setProfile({
-        id: mockId,
-        email: `${roleKey}@chroma.test`,
-        full_name: `Dev ${roleKey.charAt(0).toUpperCase() + roleKey.slice(1).replace("_", " ")}`,
-        team,
-        is_project_lead: isLead,
-        role: roleStr,
-        created_at: new Date().toISOString()
-      });
     }
   };
 

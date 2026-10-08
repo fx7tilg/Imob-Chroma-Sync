@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Shield, AlertTriangle, Play, Download, Clock, ArrowLeft, Zap, Users, Activity, CheckCircle2, FileText, Share2, Search, ArrowRight } from "lucide-react";
+import { Shield, AlertTriangle, Play, Download, Clock, ArrowLeft, Activity, FileText, Share2, Search, ArrowRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "../lib/supabase";
 import { fetchLatestComprehensiveAudit, runNewComprehensiveAudit } from "../lib/comprehensiveAudit";
 import { computeSnapshotHash } from "../lib/hash";
-import { runAudit, type AuditResult } from "../lib/auditSignals";
+import { runAudit } from "../lib/auditSignals";
 import type { ComprehensiveAudit, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "../components/LogoMark";
-import { useAuth } from "../auth/AuthContext";
 import { checkAndUseCredit } from "../lib/credits";
 import { downloadElementAsPdf } from "../lib/pdfExport";
 
 export default function ComprehensiveAuditPage() {
-  const { profile } = useAuth();
   const navigate = useNavigate();
   const reportRef = useRef<HTMLDivElement>(null);
   
@@ -91,7 +89,7 @@ export default function ComprehensiveAuditPage() {
   async function handleRunNew() {
     if (decisions.length === 0 || !auditResult) return;
     
-    const { allowed, remaining } = await checkAndUseCredit("comprehensive_audit");
+    const { allowed } = await checkAndUseCredit("comprehensive_audit");
     if (!allowed) {
       setError("You have exhausted your 3 credits for Comprehensive Audit today.");
       return;

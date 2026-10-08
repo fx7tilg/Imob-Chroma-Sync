@@ -5,17 +5,15 @@ import ReactMarkdown from "react-markdown";
 import { supabase } from "../lib/supabase";
 import { fetchLatestDeepAnalysis, runNewDeepAnalysis } from "../lib/deepAnalysis";
 import { computeSnapshotHash } from "../lib/hash";
-import { runAudit, type AuditResult } from "../lib/auditSignals";
+import { runAudit } from "../lib/auditSignals";
 import type { DecisionDeepAnalysis, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "../components/LogoMark";
-import { useAuth } from "../auth/AuthContext";
 import { checkAndUseCredit } from "../lib/credits";
 import { downloadElementAsPdf } from "../lib/pdfExport";
 
 export default function DecisionDeepAnalysisPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { profile } = useAuth();
   const reportRef = useRef<HTMLDivElement>(null);
   
   const [analysis, setAnalysis] = useState<DecisionDeepAnalysis | null>(null);
@@ -99,7 +97,7 @@ export default function DecisionDeepAnalysisPage() {
   async function handleRunNew() {
     if (!decision || !auditResult) return;
     
-    const { allowed, remaining } = await checkAndUseCredit("deep_analysis");
+    const { allowed } = await checkAndUseCredit("deep_analysis");
     if (!allowed) {
       setError("You have exhausted your 3 credits for Deep Analysis today.");
       return;

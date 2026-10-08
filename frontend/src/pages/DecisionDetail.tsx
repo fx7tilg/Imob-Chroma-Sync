@@ -12,7 +12,7 @@ import DecisionFields from "../components/DecisionFields";
 import DecisionHistory from "../components/DecisionHistory";
 import ApprovalHistory from "../components/ApprovalHistory";
 import AiAnalysingOverlay from "../components/AiAnalysingOverlay";
-import { Shield, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 import { checkAndUseCredit } from "../lib/credits";
 
 export default function DecisionDetail() {
@@ -29,7 +29,7 @@ export default function DecisionDetail() {
   const [revertReason, setRevertReason] = useState("");
   const [submittingRevert, setSubmittingRevert] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const [viewsUsed, setViewsUsed] = useState<number>(0);
+  const [, setViewsUsed] = useState<number>(0);
 
   useEffect(() => {
     if (!id) return;
@@ -242,7 +242,7 @@ export default function DecisionDetail() {
   }
 
   async function rerunAi() {
-    const { allowed, remaining } = await checkAndUseCredit("ai_check");
+    const { allowed } = await checkAndUseCredit("ai_check");
     if (!allowed) {
       setStatusError("You have exhausted your 3 credits for AI Check today.");
       return;

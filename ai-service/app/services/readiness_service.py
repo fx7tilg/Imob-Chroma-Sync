@@ -98,10 +98,19 @@ async def _deep_analysis(req: ReadinessRequest, deterministic_aggregate: str, pe
         final_rating = ai_rating if order.get(ai_rating, 0) > order.get(deterministic_aggregate, 0) else deterministic_aggregate
         
         return final_rating, reason, flags
-    except (asyncio.TimeoutError, ValidationError, json.JSONDecodeError, ValueError, KeyError, Exception) as e:
+    except asyncio.TimeoutError:
+        log.warning("deep analysis timed out after %ss", _LLM_TIMEOUT)
+    except Exception as e:  # noqa: BLE001 - never let a narrator failure break scoring
         log.warning("deep analysis failed: %s", e)
-        
-    return deterministic_aggregate, None, []
+
+    # Deterministic scores still stand, but the caller must be able to tell that
+    # the LLM narration did not run - otherwise degraded results look normal.
+    return deterministic_aggregate, None, [
+        ReadinessFlag(
+            flag="ai_fallback",
+            detail="AI narration unavailable; rating is from the deterministic scorer only.",
+        )
+    ]
 
 
 async def evaluate(req: ReadinessRequest) -> ReadinessResponse:

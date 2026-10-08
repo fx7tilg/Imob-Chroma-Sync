@@ -189,37 +189,28 @@ begin
  
 end $$;
  
--- Add demo PKI PIN support: a simple text column to store card PINs for hackathon demo.
-alter table public.profiles add column if not exists pki_pin text;
- 
--- Map demo PINs to the seeded users so each user can authenticate via PKI card in the demo.
-update public.profiles p set pki_pin = '1001'
- from auth.users u where u.email = 'design.editor@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1002'
- from auth.users u where u.email = 'design.approver@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1003'
- from auth.users u where u.email = 'design.viewer@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1004'
- from auth.users u where u.email = 'engineering.editor@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1005'
- from auth.users u where u.email = 'engineering.approver@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1006'
- from auth.users u where u.email = 'engineering.viewer@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1007'
- from auth.users u where u.email = 'procurement.editor@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1008'
- from auth.users u where u.email = 'procurement.approver@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1009'
- from auth.users u where u.email = 'procurement.viewer@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1010'
- from auth.users u where u.email = 'quality.editor@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1011'
- from auth.users u where u.email = 'quality.approver@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '1012'
- from auth.users u where u.email = 'quality.viewer@chroma.test' and p.id = u.id;
- 
--- Admin / generic pins
-update public.profiles p set pki_pin = '9999' from auth.users u where u.email = 'admin@chroma.test' and p.id = u.id;
-update public.profiles p set pki_pin = '0000' from auth.users u where u.email = 'viewer@chroma.test' and p.id = u.id;
+-- Demo PKI card PINs. These live in demo_pki_pins (RLS enabled, no policies -
+-- reachable only by service_role via the pki-auth function), NOT on profiles,
+-- which every authenticated user can read.
+insert into public.demo_pki_pins (profile_id, pin)
+select u.id, v.pin
+  from (values
+    ('design.editor@chroma.test',        '1001'),
+    ('design.approver@chroma.test',      '1002'),
+    ('design.viewer@chroma.test',        '1003'),
+    ('engineering.editor@chroma.test',   '1004'),
+    ('engineering.approver@chroma.test', '1005'),
+    ('engineering.viewer@chroma.test',   '1006'),
+    ('procurement.editor@chroma.test',   '1007'),
+    ('procurement.approver@chroma.test', '1008'),
+    ('procurement.viewer@chroma.test',   '1009'),
+    ('quality.editor@chroma.test',       '1010'),
+    ('quality.approver@chroma.test',     '1011'),
+    ('quality.viewer@chroma.test',       '1012'),
+    ('admin@chroma.test',                '9999'),
+    ('viewer@chroma.test',               '0000')
+  ) as v(email, pin)
+  join auth.users u on u.email = v.email
+on conflict (profile_id) do update set pin = excluded.pin;
  
 drop function _seed_user(text, text, team_t, profile_role_t, boolean);

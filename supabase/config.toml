@@ -18,6 +18,13 @@ port = 54323
  
 [auth]
 enabled = true
+# NOTE: this file configures the LOCAL stack (`supabase start`). The hosted
+# project is configured in the Supabase dashboard - the values below are NOT
+# applied there. Production requirements (see README "Production deployment"):
+#   * site_url            -> the real frontend origin (reset/magic-link emails
+#                            are built from it; localhost makes them unusable)
+#   * enable_confirmations -> true (otherwise anyone can register an account
+#                            against an email address they do not control)
 site_url = "http://localhost:5173"
 additional_redirect_urls = ["http://localhost:5173"]
 jwt_expiry = 3600
@@ -28,6 +35,25 @@ enable_signup = true
 double_confirm_changes = false
 enable_confirmations = false
  
+# Edge Functions: verify_jwt is the platform-level gate. on-decision-submitted
+# and detect-conflicts are invoked by pg_net with the service-role key and
+# additionally check it themselves; dima-lookup / vred-preview resolve the
+# caller via GoTrue. pki-auth stays off unless ENABLE_PKI_DEMO_AUTH=true.
+[functions.on-decision-submitted]
+verify_jwt = true
+
+[functions.detect-conflicts]
+verify_jwt = true
+
+[functions.dima-lookup]
+verify_jwt = true
+
+[functions.vred-preview]
+verify_jwt = true
+
+[functions.pki-auth]
+verify_jwt = false
+
 [realtime]
 enabled = true
  

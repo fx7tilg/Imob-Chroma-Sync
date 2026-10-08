@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Aperture, Zap, X, AlertTriangle, Sparkles, TrendingUp, ChevronRight } from "lucide-react";
+import { Zap, X, AlertTriangle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { getUsesRemaining, consumeUse, getMaxDailyUses, restoreUse } from "../lib/aiQuota";
 import LogoMark from "./LogoMark";

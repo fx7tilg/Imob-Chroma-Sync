@@ -1,6 +1,6 @@
 import type { AiRating, Approval, Decision, Material } from "../types/db";
-import { AI_SERVICE_URL } from "./supabase";
 import { supabase } from "./supabase";
+import { aiDebug, aiPost } from "./aiClient";
 
 export const DOCUMENT_TYPES = ["Render", "Spec", "Quote", "CAD", "Other"] as const;
 
@@ -18,18 +18,12 @@ interface ChatOptions {
 // In-app assistant. Sends the conversation to the AI service /chat endpoint
 // and returns the assistant's reply text.
 export async function sendChat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
-  const res = await fetch(`${AI_SERVICE_URL}/chat`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      messages,
-      user_team: opts.userTeam ?? null,
-      is_project_lead: opts.isProjectLead ?? false,
-      context: opts.context ?? ""
-    })
+  const data = await aiPost<{ reply: string }>("/chat", {
+    messages,
+    user_team: opts.userTeam ?? null,
+    is_project_lead: opts.isProjectLead ?? false,
+    context: opts.context ?? ""
   });
-  if (!res.ok) throw new Error(`Chat ${res.status}`);
-  const data = (await res.json()) as { reply: string };
   return data.reply;
 }
 
@@ -131,21 +125,15 @@ export async function runReadinessCheck(decisionId: string): Promise<ReadinessRe
       if (snap && snap.snapshot) previous_decision = snap.snapshot;
     }
 
-    const res = await fetch(`${AI_SERVICE_URL}/readiness`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        decision,
-        previous_decision,
-        material,
-        approvals: approvalRows,
-        vred_rows,
-        sibling_decisions,
-        approver_profiles
-      })
+    const parsed = await aiPost<ReadinessResponse>("/readiness", {
+      decision,
+      previous_decision,
+      material,
+      approvals: approvalRows,
+      vred_rows,
+      sibling_decisions,
+      approver_profiles
     });
-    if (!res.ok) throw new Error(`AI ${res.status}`);
-    const parsed = (await res.json()) as ReadinessResponse;
 
     const rc_flags: Record<string, unknown> = {};
     for (const key of ["rc1_lifecycle", "rc2_compliance", "rc3_lead_time",
@@ -172,29 +160,24 @@ export async function runReadinessCheck(decisionId: string): Promise<ReadinessRe
     // If the AI flagged a conflict, insert the conflict rows directly into the
     // database using the structured evidence from the scoring service.
     // This bypasses the broken /conflicts endpoint and the 30-minute cron job entirely.
-    console.log("[CONFLICT-SYNC] rc6_conflict result:", JSON.stringify(parsed.rc6_conflict, null, 2));
+    aiDebug("rc6_conflict rating:", parsed.rc6_conflict?.rating);
     const evidence = parsed.rc6_conflict?.evidence as Record<string, unknown> | undefined;
     const hasConflicts = evidence?.has_conflicts === true || parsed.rc6_conflict?.rating === "red" || parsed.rc6_conflict?.rating === "yellow";
 
     if (hasConflicts) {
-      console.log("[CONFLICT-SYNC] Conflict detected or present! Rating:", parsed.rc6_conflict?.rating);
       const conflictDetails = (evidence?.conflict_details ?? []) as Array<{
         sibling_id: string;
         conflict_type: string;
         explanation: string;
       }>;
-      console.log("[CONFLICT-SYNC] conflict_details count:", conflictDetails.length, conflictDetails);
+      aiDebug("conflict_details count:", conflictDetails.length);
 
       if (conflictDetails.length > 0) {
-        // Use await directly instead of fire-and-forget so we can see errors
+        // Awaited rather than fire-and-forget so failures surface in the catch.
         try {
           for (const detail of conflictDetails) {
-            console.log("[CONFLICT-SYNC] Processing detail:", detail);
             // Skip self-conflicts (DB constraint: decision_a_id <> decision_b_id)
-            if (detail.sibling_id === decisionId) {
-              console.log("[CONFLICT-SYNC] Skipping self-conflict");
-              continue;
-            }
+            if (detail.sibling_id === decisionId) continue;
 
             // Check if this exact conflict already exists (unresolved)
             const { data: existing, error: checkErr } = await supabase
@@ -207,31 +190,26 @@ export async function runReadinessCheck(decisionId: string): Promise<ReadinessRe
               .eq("conflict_type", detail.conflict_type)
               .eq("resolved", false)
               .maybeSingle();
-
-            console.log("[CONFLICT-SYNC] Existing check:", existing, "Error:", checkErr);
+            if (checkErr) console.error("Conflict lookup failed:", checkErr.message);
 
             if (!existing) {
-              const insertPayload = {
+              const { error: insertErr } = await supabase.from("conflicts").insert({
                 decision_a_id: decisionId,
                 decision_b_id: detail.sibling_id,
                 conflict_type: detail.conflict_type,
-                explanation: detail.explanation,
-              };
-              console.log("[CONFLICT-SYNC] Inserting:", insertPayload);
-              const { data: insertData, error: insertErr } = await supabase.from("conflicts").insert(insertPayload).select();
-              console.log("[CONFLICT-SYNC] Insert result:", insertData, "Error:", insertErr);
-            } else {
-              console.log("[CONFLICT-SYNC] Conflict already exists, skipping");
+                explanation: detail.explanation
+              });
+              if (insertErr) console.error("Conflict insert failed:", insertErr.message);
             }
           }
         } catch (err) {
-          console.error("[CONFLICT-SYNC] Direct conflict sync failed:", err);
+          console.error("Conflict sync failed:", err);
         }
       } else {
-        console.warn("[CONFLICT-SYNC] No conflict_details in evidence! The AI service may not have returned structured data.");
+        aiDebug("conflict rating set but no structured conflict_details returned");
       }
     } else if (parsed.rc6_conflict?.rating === "green") {
-      console.log("[CONFLICT-SYNC] No conflict flagged and has_conflicts is false. Auto-resolving existing open conflicts.");
+      aiDebug("no conflicts; auto-resolving open conflicts for", decisionId);
       try {
         const { error: resolveErr } = await supabase
           .from("conflicts")
@@ -243,9 +221,9 @@ export async function runReadinessCheck(decisionId: string): Promise<ReadinessRe
           })
           .eq('resolved', false)
           .or(`decision_a_id.eq.${decisionId},decision_b_id.eq.${decisionId}`);
-        if (resolveErr) console.error("[CONFLICT-SYNC] Error auto-resolving conflicts:", resolveErr);
+        if (resolveErr) console.error("Error auto-resolving conflicts:", resolveErr.message);
       } catch (err) {
-        console.error("[CONFLICT-SYNC] Direct conflict resolve failed:", err);
+        console.error("Conflict resolve failed:", err);
       }
     }
     return parsed;

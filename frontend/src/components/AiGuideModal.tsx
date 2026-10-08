@@ -289,7 +289,7 @@
 //   );
 // }
 
-import { BrainCircuit, Zap, ShieldCheck, Eye, GitBranch } from "lucide-react";
+import { Zap, ShieldCheck, Eye, GitBranch } from "lucide-react";
 import LogoMark from "./LogoMark";
 
 interface AiGuideModalProps {

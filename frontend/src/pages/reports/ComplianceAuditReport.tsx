@@ -4,7 +4,6 @@ import {
   ClipboardCheck, Download, Loader2, Clock, CheckCircle2, XCircle,
   Shield, UserCheck, History
 } from "lucide-react";
-import LogoMark from "../../components/LogoMark";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer
@@ -12,7 +11,6 @@ import {
 import PermissionGate from "../../components/auth/PermissionGate";
 import { supabase } from "../../lib/supabase";
 import { useGlobalFilter } from "../../contexts/FilterContext";
-import EnterpriseReportView from "../../components/EnterpriseReportView";
 import type { Decision, Approval, Team, Conflict } from "../../types/db";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -71,7 +69,7 @@ export default function ComplianceAuditReport() {
   const { filterRange } = useGlobalFilter();
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
-  const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [, setConflicts] = useState<Conflict[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
   const [profiles, setProfiles] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);

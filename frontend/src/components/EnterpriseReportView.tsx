@@ -4,7 +4,7 @@ import { Play, Download, Clock, AlertTriangle, FileText, Activity, AlertCircle, 
 import ReactMarkdown from "react-markdown";
 import { fetchLatestEnterpriseReport, runNewEnterpriseReport } from "../lib/enterpriseReports";
 import { computeSnapshotHash } from "../lib/hash";
-import { runAudit, type AuditResult } from "../lib/auditSignals";
+import { runAudit } from "../lib/auditSignals";
 import type { EnterpriseReport, EnterpriseReportType, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "./LogoMark";
 import { checkAndUseCredit } from "../lib/credits";
@@ -56,7 +56,7 @@ export default function EnterpriseReportView({ reportType, title, decisions, app
     if (decisions.length === 0 || !auditResult) return;
     
     // We can track credits per report type for granularity, e.g. "enterprise_report_supply_chain"
-    const { allowed, remaining } = await checkAndUseCredit(`enterprise_report_${reportType}`);
+    const { allowed } = await checkAndUseCredit(`enterprise_report_${reportType}`);
     if (!allowed) {
       setError(`You have exhausted your 3 credits for this report today.`);
       return;
