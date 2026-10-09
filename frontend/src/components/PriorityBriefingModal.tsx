@@ -2,13 +2,11 @@ import { useState, useEffect } from "react";
 import { AlertTriangle, X, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Decision, Approval, Conflict } from "../types/db";
-import { getUsesRemaining, consumeUse, getMaxDailyUses, restoreUse } from "../lib/aiQuota";
-import { useAuth } from "../auth/AuthContext";
+import { aiPost, AiQuotaError } from "../lib/aiClient";
+import { useAiCredits } from "../hooks/useAiCredits";
+import { formatTokens, timeUntilReset } from "../lib/aiCredits";
 import { getDecisionSignals } from "../lib/auditSignals";
 import LogoMark from "./LogoMark";
-
-const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000";
-const FEATURE_KEY = "priority_briefing";
 
 interface PriorityBriefingModalProps {
   isOpen: boolean;
@@ -42,73 +40,50 @@ export default function PriorityBriefingModal({ isOpen, onClose, decision, appro
   const [data, setData] = useState<BriefingResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [quotaError, setQuotaError] = useState(false);
-  const { profile, role } = useAuth();
-  const [remaining, setRemaining] = useState(0);
-
-  useEffect(() => {
-    setRemaining(getUsesRemaining(FEATURE_KEY, role, profile?.id));
-  }, [role, profile?.id]);
+  const { credits, refresh } = useAiCredits();
 
   useEffect(() => {
     if (!isOpen) {
       setData(null);
       setQuotaError(false);
-      setRemaining(getUsesRemaining(FEATURE_KEY, role, profile?.id));
       return;
     }
 
-    // Check quota
-    if (!consumeUse(FEATURE_KEY, role, profile?.id)) {
-      setQuotaError(true);
-      setRemaining(0);
-      return;
-    }
-
-    setRemaining(getUsesRemaining(FEATURE_KEY, role, profile?.id));
     let cancelled = false;
 
     async function fetchBriefing() {
       setLoading(true);
-      
+
       // Calculate frontend signals to send to the backend
       const signals = getDecisionSignals(decision, approvals, conflicts);
 
       try {
-        const res = await fetch(`${AI_API}/priority-briefing`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            decisions: [decision], 
-            context: "decision_briefing",
-            decision_signals: signals,
-            approvals,
-            conflicts,
-          }),
+        // Credits are reserved and settled server-side; a failed call is not billed.
+        const json = await aiPost<BriefingResponse>("/priority-briefing", {
+          decisions: [decision],
+          context: "decision_briefing",
+          decision_signals: signals,
+          approvals,
+          conflicts,
         });
-
-        if (!res.ok) throw new Error("Failed to generate briefing");
-
-        const json = await res.json() as BriefingResponse;
-        
-        if (json.is_fallback) {
-          restoreUse(FEATURE_KEY, profile?.id);
-          setRemaining(getUsesRemaining(FEATURE_KEY, role, profile?.id));
-        }
 
         if (!cancelled) setData(json);
       } catch (err) {
+        if (err instanceof AiQuotaError) {
+          if (!cancelled) setQuotaError(true);
+          return;
+        }
         console.error(err);
-        restoreUse(FEATURE_KEY, profile?.id);
-        setRemaining(getUsesRemaining(FEATURE_KEY, role, profile?.id));
         if (!cancelled) {
           setData({
             briefing_markdown: "⚠️ Failed to connect to AI service.",
             is_fallback: true,
             headline: "Connection Failed",
-            overview: "Could not retrieve briefing. Your quota has been refunded.",
+            overview: "Could not retrieve briefing. You have not been charged for this attempt.",
           });
         }
       } finally {
+        refresh();
         if (!cancelled) setLoading(false);
       }
     }
@@ -157,7 +132,7 @@ export default function PriorityBriefingModal({ isOpen, onClose, decision, appro
                   fontSize: "0.5625rem", color: "var(--text-3)", fontWeight: 500,
                   display: "flex", alignItems: "center", gap: "3px"
                 }}>
-                  <Zap size={8} /> {remaining}/{getMaxDailyUses(role)} uses left today
+                  <Zap size={8} /> {credits ? `${formatTokens(credits.tokensRemaining)} of ${formatTokens(credits.tokenLimit)} tokens left today` : "AI allowance"}
                 </div>
               </div>
             </div>
@@ -194,11 +169,11 @@ export default function PriorityBriefingModal({ isOpen, onClose, decision, appro
               </div>
               <div>
                 <div style={{ color: "var(--text-0)", fontWeight: 600, fontSize: "1rem", marginBottom: "0.5rem" }}>
-                  Daily Quota Reached
+                  Daily AI Allowance Reached
                 </div>
                 <div style={{ color: "var(--text-2)", fontSize: "0.875rem", lineHeight: 1.5 }}>
-                  You've used all <strong>{getMaxDailyUses()}</strong> AI briefings for today.<br />
-                  Your quota resets at midnight.
+                  You've used all <strong>{credits ? formatTokens(credits.tokenLimit) : "your"}</strong> AI tokens for today.<br />
+                  {credits ? `Your allowance resets in ${timeUntilReset(credits)}.` : "Your allowance resets at midnight UTC."}
                 </div>
               </div>
             </div>

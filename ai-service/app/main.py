@@ -43,8 +43,9 @@ from .security import (
     IS_PRODUCTION,
     MAX_BODY_BYTES,
     allowed_origins,
-    require_caller,
 )
+from .credits import CREDITS_ENABLED, Meter, metered
+from .usage import BudgetExceededError
 from .services import readiness_service, conflicts_service, summary_service, my_summary_service, priority_briefing_service, chat_service, report_summary_service
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -66,6 +67,16 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["authorization", "content-type"],
+    # Browsers hide non-safelisted response headers unless they are exposed,
+    # so the credit meter could not read its own balance without this.
+    expose_headers=[
+        "X-AI-Credits-Limit",
+        "X-AI-Credits-Remaining",
+        "X-AI-Credits-Used",
+        "X-AI-Requests-Remaining",
+        "X-AI-Credits-Reset",
+        "Retry-After",
+    ],
 )
 
 
@@ -89,6 +100,17 @@ async def limit_body_size(request: Request, call_next):
     return await call_next(request)
 
 
+@app.exception_handler(BudgetExceededError)
+async def budget_exceeded_handler(request: Request, exc: BudgetExceededError):
+    """The service-wide spend cap is a hard stop, not a transient fault, so no
+    Retry-After - retrying cannot help until the cap is raised."""
+    log.error("LLM spend cap reached on %s", request.url.path)
+    return JSONResponse(
+        {"detail": {"error_code": "ai_budget_exhausted", "message": str(exc)}},
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """Log the detail, return an opaque message - never leak internals."""
@@ -102,10 +124,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 async def _startup_banner() -> None:
     log.info(
-        "chroma-ai starting: env=%s provider=%s auth=%s",
+        "chroma-ai starting: env=%s provider=%s auth=%s credits=%s",
         APP_ENV,
         _LLM_PROVIDER,
         "enabled" if AUTH_ENABLED else "DISABLED",
+        "enforced" if CREDITS_ENABLED else "DISABLED",
     )
 
 
@@ -117,44 +140,60 @@ def health() -> dict[str, object]:
         "env": APP_ENV,
         "llm_provider": _LLM_PROVIDER,
         "auth_enabled": AUTH_ENABLED,
+        "credits_enforced": CREDITS_ENABLED,
         "degraded": _LLM_PROVIDER == "mock",
     }
 
 
 @app.post("/readiness", response_model=ReadinessResponse)
-async def readiness(req: ReadinessRequest, _=Depends(require_caller)) -> ReadinessResponse:
-    return await readiness_service.evaluate(req)
+async def readiness(
+    req: ReadinessRequest, meter: Meter = Depends(metered("readiness"))
+) -> ReadinessResponse:
+    async with meter:
+        return await readiness_service.evaluate(req)
 
 
 @app.post("/conflicts", response_model=ConflictResponse)
-async def conflicts(req: ConflictRequest, _=Depends(require_caller)) -> ConflictResponse:
-    return await conflicts_service.detect(req)
+async def conflicts(
+    req: ConflictRequest, meter: Meter = Depends(metered("conflicts"))
+) -> ConflictResponse:
+    async with meter:
+        return await conflicts_service.detect(req)
 
 
 @app.post("/summarise", response_model=SummaryResponse)
-async def summarise(req: SummaryRequest, _=Depends(require_caller)) -> SummaryResponse:
-    return await summary_service.summarise(req)
+async def summarise(
+    req: SummaryRequest, meter: Meter = Depends(metered("summarise"))
+) -> SummaryResponse:
+    async with meter:
+        return await summary_service.summarise(req)
 
 
 @app.post("/my-summary", response_model=MySummaryResponse)
-async def my_summary(req: MySummaryRequest, _=Depends(require_caller)) -> MySummaryResponse:
-    return await my_summary_service.summarise(req)
+async def my_summary(
+    req: MySummaryRequest, meter: Meter = Depends(metered("my_summary"))
+) -> MySummaryResponse:
+    async with meter:
+        return await my_summary_service.summarise(req)
 
 
 @app.post("/report-summary", response_model=ReportSummaryResponse)
 async def report_summary(
-    req: ReportSummaryRequest, _=Depends(require_caller)
+    req: ReportSummaryRequest, meter: Meter = Depends(metered("report_summary"))
 ) -> ReportSummaryResponse:
-    return await report_summary_service.summarise(req)
+    async with meter:
+        return await report_summary_service.summarise(req)
 
 
 @app.post("/priority-briefing", response_model=PriorityBriefingResponse)
 async def priority_briefing(
-    req: PriorityBriefingRequest, _=Depends(require_caller)
+    req: PriorityBriefingRequest, meter: Meter = Depends(metered("priority_briefing"))
 ) -> PriorityBriefingResponse:
-    return await priority_briefing_service.briefing(req)
+    async with meter:
+        return await priority_briefing_service.briefing(req)
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest, _=Depends(require_caller)) -> ChatResponse:
-    return await chat_service.reply(req)
+async def chat(req: ChatRequest, meter: Meter = Depends(metered("chat"))) -> ChatResponse:
+    async with meter:
+        return await chat_service.reply(req)

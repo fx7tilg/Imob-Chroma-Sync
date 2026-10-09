@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Zap, X, AlertTriangle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { getUsesRemaining, consumeUse, getMaxDailyUses, restoreUse } from "../lib/aiQuota";
+import { aiPost, AiQuotaError } from "../lib/aiClient";
+import { useAiCredits } from "../hooks/useAiCredits";
+import { formatTokens, timeUntilReset } from "../lib/aiCredits";
 import LogoMark from "./LogoMark";
 import { useAuth } from "../auth/AuthContext";
-
-const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000";
 
 interface Props {
   /** A unique key for this report's AI quota, e.g. "meldeliste_ai" */
@@ -18,7 +18,7 @@ interface Props {
 
 /**
  * Premium AI insight overlay for report pages.
- * Sends the report data to /my-summary and renders the markdown response
+ * Sends the report data to /report-summary and renders the markdown response
  * in a beautifully styled full-screen modal – matching PriorityBriefingModal quality.
  */
 export default function ReportAISummary({ featureKey, payload, title = "AI Insights" }: Props) {
@@ -26,52 +26,34 @@ export default function ReportAISummary({ featureKey, payload, title = "AI Insig
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quotaError, setQuotaError] = useState(false);
-  const { profile, role } = useAuth();
-  const [remaining, setRemaining] = useState(0);
+  const { profile } = useAuth();
+  const { credits, refresh } = useAiCredits();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Initialize remaining quota once profile is loaded
-  useEffect(() => {
-    setRemaining(getUsesRemaining(featureKey, role, profile?.id));
-  }, [featureKey, role, profile?.id]);
-
   async function generate() {
-    if (!consumeUse(featureKey, role, profile?.id)) {
-      setQuotaError(true);
-      setRemaining(0);
-      setIsOpen(true);
-      return;
-    }
-    setRemaining(getUsesRemaining(featureKey, role, profile?.id));
     setLoading(true);
     setError(null);
     setSummary(null);
+    setQuotaError(false);
     setIsOpen(true);
 
     try {
-      const res = await fetch(`${AI_API}/report-summary`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          feature_key: featureKey,
-          payload,
-          user_id: profile?.id 
-        }),
-      });
-      if (!res.ok) throw new Error(`AI ${res.status}`);
-      const data = await res.json();
-
-      if (data.is_fallback) {
-        restoreUse(featureKey, profile?.id);
-        setRemaining(getUsesRemaining(featureKey, role, profile?.id));
-      }
+      // Credits are reserved and settled server-side, so there is nothing to
+      // consume or refund here - a failed call simply is not billed.
+      const data = await aiPost<{ summary_markdown: string; is_fallback?: boolean }>(
+        "/report-summary",
+        { feature_key: featureKey, payload, user_id: profile?.id }
+      );
       setSummary(data.summary_markdown);
     } catch (err) {
-      console.error("Report AI summary error:", err);
-      restoreUse(featureKey, profile?.id);
-      setRemaining(getUsesRemaining(featureKey, role, profile?.id));
-      setError("AI service unavailable. Your quota has been refunded.");
+      if (err instanceof AiQuotaError) {
+        setQuotaError(true);
+      } else {
+        console.error("Report AI summary error:", err);
+        setError("AI service unavailable. You have not been charged for this attempt.");
+      }
     } finally {
+      refresh();
       setLoading(false);
     }
   }
@@ -113,7 +95,7 @@ export default function ReportAISummary({ featureKey, payload, title = "AI Insig
                   background: "rgba(77,166,255,0.1)", padding: "1px 6px", borderRadius: "3px"
                 }}>AI-Powered</span>
                 <span style={{ fontSize: "0.5625rem", color: "var(--text-3)", display: "flex", alignItems: "center", gap: "3px" }}>
-                  <Zap size={7} /> {remaining}/{getMaxDailyUses(role)} left
+                  <Zap size={7} /> {credits ? `${formatTokens(credits.tokensRemaining)} tokens left` : "—"}
                 </span>
               </div>
             </div>
@@ -171,7 +153,7 @@ export default function ReportAISummary({ featureKey, payload, title = "AI Insig
                       fontSize: "0.5625rem", color: "var(--text-3)", fontWeight: 500,
                       display: "flex", alignItems: "center", gap: "3px"
                     }}>
-                      <Zap size={8} /> {remaining}/{getMaxDailyUses(role)} uses left today
+                      <Zap size={8} /> {credits ? `${formatTokens(credits.tokensRemaining)} of ${formatTokens(credits.tokenLimit)} tokens left today` : "AI allowance"}
                     </div>
                   </div>
                 </div>
@@ -206,10 +188,10 @@ export default function ReportAISummary({ featureKey, payload, title = "AI Insig
                     <AlertTriangle size={28} style={{ color: "#f59e0b" }} />
                   </div>
                   <div>
-                    <div style={{ color: "var(--text-0)", fontWeight: 600, fontSize: "1rem", marginBottom: "0.5rem" }}>Daily Quota Reached</div>
+                    <div style={{ color: "var(--text-0)", fontWeight: 600, fontSize: "1rem", marginBottom: "0.5rem" }}>Daily AI Allowance Reached</div>
                     <div style={{ color: "var(--text-2)", fontSize: "0.875rem", lineHeight: 1.5 }}>
-                      You've used all <strong>{getMaxDailyUses(role)}</strong> AI insights for today.<br />
-                      Your quota resets at midnight.
+                      You've used all <strong>{credits ? formatTokens(credits.tokenLimit) : "your"}</strong> AI tokens for today.<br />
+                      {credits ? `Your allowance resets in ${timeUntilReset(credits)}.` : "Your allowance resets at midnight UTC."}
                     </div>
                   </div>
                 </div>

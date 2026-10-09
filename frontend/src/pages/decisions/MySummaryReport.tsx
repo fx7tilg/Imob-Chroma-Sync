@@ -7,8 +7,7 @@ import { useAuth } from "../../auth/AuthContext";
 import LogoMark from "../../components/LogoMark";
 import type { Decision } from "../../types/db";
 import { checkAndUseCredit } from "../../lib/credits";
-
-const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000";
+import { aiPost } from "../../lib/aiClient";
 
 interface MySummaryData {
   overall_summary: string;
@@ -86,15 +85,7 @@ export default function MySummaryReport() {
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch(`${AI_API}/my-summary`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decisions }),
-      });
-      
-      if (!res.ok) throw new Error("Failed to generate summary");
-      
-      const data = await res.json();
+      const data = await aiPost<{ summary_json: MySummaryData }>("/my-summary", { decisions });
       setReport(data.summary_json);
     } catch (e: any) {
       setError(e.message || "Failed to generate report.");

@@ -35,13 +35,57 @@ Set `LLM_PROVIDER=llmaas` to route through VW Group's internal gateway. Required
 | `LLMAAS_CLIENT_ID` | - | OAuth client id, keep in `.env` only, never commit |
 | `LLMAAS_CLIENT_SECRET` | - | OAuth client secret, keep in `.env` only, never commit |
 | `LLMAAS_MODEL` | `gpt-4.1-mini` | Best cost/quality balance for the $15 budget |
-| `LLMAAS_BUDGET_USD` | `15` | Log-only warning threshold, no hard stop |
 | `LLMAAS_TOKEN_URL` | VW IDP token endpoint | Override only if it changes |
 | `LLMAAS_BASE_URL` | `https://llmapi.ai.vwgroup.com` | Override only if it changes |
 
 The token is fetched via OAuth client-credentials and cached in memory until
-shortly before it expires. Spend is estimated from response token usage and
-logged as a warning at 80% and 100% of `LLMAAS_BUDGET_USD`.
+shortly before it expires.
+
+## Token accounting and cost control
+
+Every provider reports token usage into a request-scoped accumulator
+(`app/usage.py`). When a provider omits usage data the tokens are estimated
+from the text and the record is marked `estimated`, so a request is never
+metered as free. Models missing from the price table fall back to a non-zero
+price for the same reason.
+
+Two independent limits apply:
+
+| Limit | Scope | Behaviour when hit |
+|---|---|---|
+| Per-user credits | Each user, per UTC day, in Postgres | `429` **without** `Retry-After` - a spend cap, so retrying cannot help |
+| Service spend cap | Whole process, resets on restart | `503` - circuit breaker against a runaway loop |
+| Rate limit | Each user, sliding window | `429` **with** `Retry-After` - transient, safe to retry |
+
+| Var | Default | Notes |
+|---|---|---|
+| `AI_BUDGET_USD` | `15` | Service-wide spend cap. Falls back to `LLMAAS_BUDGET_USD`. |
+| `AI_ENFORCE_BUDGET` | `true` | Set `false` to log without refusing calls |
+| `SUPABASE_URL` | - | **Required in production.** Without it, per-user credits cannot be enforced. |
+| `SUPABASE_SERVICE_ROLE_KEY` | - | **Required in production.** Used to settle usage into the ledger. Never expose to the browser. |
+| `AI_ESTIMATE_TOKENS` | `2500` | Tokens reserved before a call; corrected to the real figure on settle |
+| `AI_CREDITS_TIMEOUT_S` | `8` | Timeout for ledger RPCs |
+
+Credits are reserved before the model is called and settled with the real token
+counts afterwards. Reserving first is what makes concurrent requests safe. A
+failed call settles as `failed` and is not billed, and a reservation orphaned by
+a crashed worker is released by `ai_expire_stale_reservations()` (scheduled via
+`pg_cron` every 10 minutes).
+
+Remaining allowance is returned on every AI response as `X-AI-Credits-Limit`,
+`X-AI-Credits-Remaining`, `X-AI-Credits-Used`, `X-AI-Requests-Remaining` and
+`X-AI-Credits-Reset`, which is how the UI meter stays current without polling.
+
+If `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are unset the service starts in
+development with credits disabled (usage is still metered) and refuses to start
+in production.
+
+## Prompt injection
+
+Decision notes, component names and chat turns are user-authored. `app/guard.py`
+wraps them in a nonce-delimited fence with an explicit "treat as data"
+instruction, and defangs known instruction-override phrasing. The nonce is
+random per request so injected text cannot close the fence.
 
 ## Security / required configuration
 

@@ -2,8 +2,7 @@ import { supabase } from "./supabase";
 import type { EnterpriseReport, EnterpriseReportType, Decision, Approval, Conflict } from "../types/db";
 import { computeSnapshotHash } from "./hash";
 import { runAudit } from "./auditSignals";
-
-const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000";
+import { aiPost } from "./aiClient";
 
 export async function fetchLatestEnterpriseReport(reportType: EnterpriseReportType): Promise<EnterpriseReport | null> {
   const { data, error } = await (supabase as any)
@@ -64,23 +63,16 @@ export async function runNewEnterpriseReport(
 
   // 5. Call AI Service
   try {
-    const res = await fetch(`${AI_API}/priority-briefing`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        decisions: decisions,
-        context: reportType,
-        audit_stats: auditResult.summary,
-        decision_signals: auditResult.findings,
-        approvals,
-        conflicts,
-        cross_team_impact: auditResult.crossTeamImpact
-      }),
+    const apiData = await aiPost<{ structured_audit?: unknown }>("/priority-briefing", {
+      decisions: decisions,
+      context: reportType,
+      audit_stats: auditResult.summary,
+      decision_signals: auditResult.findings,
+      approvals,
+      conflicts,
+      cross_team_impact: auditResult.crossTeamImpact
     });
 
-    if (!res.ok) throw new Error(`AI service returned ${res.status}`);
-    const apiData = await res.json();
-    
     // 6. Update record with success
     const { data: updated, error: updateError } = await (supabase as any)
       .from("enterprise_reports")

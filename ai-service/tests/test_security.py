@@ -42,11 +42,11 @@ def secure_client(monkeypatch):
     monkeypatch.setenv("AI_RATE_LIMIT_REQUESTS", "3")
     monkeypatch.setenv("LLM_PROVIDER", "mock")
     monkeypatch.setenv("APP_ENV", "development")
-    for mod in ("app.main", "app.security"):
+    for mod in ("app.main", "app.credits", "app.security"):
         sys.modules.pop(mod, None)
     main = importlib.import_module("app.main")
     yield TestClient(main.app)
-    for mod in ("app.main", "app.security"):
+    for mod in ("app.main", "app.credits", "app.security"):
         sys.modules.pop(mod, None)
 
 

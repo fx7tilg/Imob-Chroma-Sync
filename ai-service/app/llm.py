@@ -9,39 +9,21 @@ import os
 import time
 from typing import Protocol
 
+from .usage import estimate_tokens, record_call
+from .usage import budget as _budget
+
 log = logging.getLogger("chroma-ai.llm")
 
-# Price per 1M tokens (input, output), USD. Only models we actually use need an entry(we had only 15$).
-_PRICE_PER_1M: dict[str, tuple[float, float]] = {
-    "gpt-4.1-mini": (0.40, 1.60),
-    "gpt-4o-mini": (0.15, 0.60),
-    "gpt-5-mini": (0.25, 2.00),
-    "gpt-5-nano": (0.05, 0.40),
-    "gpt-4.1-nano": (0.10, 0.40),
-}
 
-
-class _CostTracker:
-    """In-memory, log-only budget guard - resets on process restart."""
-
-    def __init__(self) -> None:
-        self._spent_usd = 0.0
-        self._warned_80 = False
-        self._warned_100 = False
-
-    def record(self, model: str, prompt_tokens: int, completion_tokens: int) -> None:
-        in_price, out_price = _PRICE_PER_1M.get(model, (0.0, 0.0))
-        self._spent_usd += (prompt_tokens * in_price + completion_tokens * out_price) / 1_000_000
-        budget = float(os.environ.get("LLMAAS_BUDGET_USD", "15"))
-        if not self._warned_100 and self._spent_usd >= budget:
-            self._warned_100 = True
-            log.warning("LLMaaS spend $%.4f has reached the $%.2f budget", self._spent_usd, budget)
-        elif not self._warned_80 and self._spent_usd >= budget * 0.8:
-            self._warned_80 = True
-            log.warning("LLMaaS spend $%.4f has reached 80%% of the $%.2f budget", self._spent_usd, budget)
-
-
-_cost_tracker = _CostTracker()
+def _usage_pair(response) -> tuple[int | None, int | None]:
+    """Pull (prompt, completion) tokens off an OpenAI-shaped response."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None, None
+    return (
+        getattr(usage, "prompt_tokens", None),
+        getattr(usage, "completion_tokens", None),
+    )
 
 
 class LlmClient(Protocol):
@@ -101,7 +83,12 @@ class MockClient:
             "conflicts, and reports. What would you like to do?"
         )
 
-    async def complete_json(self, system: str, user: str) -> str:  # noqa: ARG002
+    async def complete_json(self, system: str, user: str) -> str:
+        text = self._build_json(user)
+        record_call("mock", estimate_tokens(system + user), estimate_tokens(text))
+        return text
+
+    def _build_json(self, user: str) -> str:
         low = user.lower()
 
         # ── Chat assistant ──
@@ -260,6 +247,7 @@ class MockClient:
         )
 
     async def complete_text(self, system: str, user: str) -> str:
+        record_call("mock", estimate_tokens(system + user), 12)
         return "This is a mock text response from MockClient."
 
 
@@ -271,6 +259,7 @@ class OpenAIClient:
         self._model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
     async def complete_json(self, system: str, user: str) -> str:
+        _budget.check()
         r = await self._client.chat.completions.create(
             model=self._model,
             temperature=0,
@@ -280,9 +269,13 @@ class OpenAIClient:
                 {"role": "user", "content": user},
             ],
         )
-        return r.choices[0].message.content or "{}"
+        text = r.choices[0].message.content or "{}"
+        pt, ct = _usage_pair(r)
+        record_call(self._model, pt, ct, prompt_text=system + user, completion_text=text)
+        return text
 
     async def complete_text(self, system: str, user: str) -> str:
+        _budget.check()
         r = await self._client.chat.completions.create(
             model=self._model,
             temperature=0.7,
@@ -291,7 +284,10 @@ class OpenAIClient:
                 {"role": "user", "content": user},
             ],
         )
-        return r.choices[0].message.content or ""
+        text = r.choices[0].message.content or ""
+        pt, ct = _usage_pair(r)
+        record_call(self._model, pt, ct, prompt_text=system + user, completion_text=text)
+        return text
 
 
 class AnthropicClient:
@@ -302,6 +298,7 @@ class AnthropicClient:
         self._model = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
 
     async def complete_json(self, system: str, user: str) -> str:
+        _budget.check()
         # Anthropic returns free text; we ask hard for JSON in the system prompt.
         r = await self._client.messages.create(
             model=self._model,
@@ -310,9 +307,12 @@ class AnthropicClient:
             system=system + "\n\nReturn ONLY a single JSON object. No prose.",
             messages=[{"role": "user", "content": user}],
         )
-        return "".join(b.text for b in r.content if getattr(b, "type", "") == "text") or "{}"
+        text = "".join(b.text for b in r.content if getattr(b, "type", "") == "text") or "{}"
+        self._record(r, system + user, text)
+        return text
 
     async def complete_text(self, system: str, user: str) -> str:
+        _budget.check()
         r = await self._client.messages.create(
             model=self._model,
             max_tokens=1024,
@@ -320,7 +320,20 @@ class AnthropicClient:
             system=system,
             messages=[{"role": "user", "content": user}],
         )
-        return "".join(b.text for b in r.content if getattr(b, "type", "") == "text") or ""
+        text = "".join(b.text for b in r.content if getattr(b, "type", "") == "text") or ""
+        self._record(r, system + user, text)
+        return text
+
+    def _record(self, r, prompt_text: str, completion_text: str) -> None:
+        # Anthropic names these input_tokens / output_tokens, not prompt/completion.
+        usage = getattr(r, "usage", None)
+        record_call(
+            self._model,
+            getattr(usage, "input_tokens", None),
+            getattr(usage, "output_tokens", None),
+            prompt_text=prompt_text,
+            completion_text=completion_text,
+        )
 
 
 class GroqClient:
@@ -334,6 +347,7 @@ class GroqClient:
         log.info("GroqClient initialised with model=%s", self._model)
 
     async def complete_json(self, system: str, user: str) -> str:
+        _budget.check()
         try:
             # Build request kwargs
             kwargs: dict = dict(
@@ -363,12 +377,15 @@ class GroqClient:
             import re
             content = re.sub(r"<think>[\s\S]*?</think>", "", content).strip()
 
+            pt, ct = _usage_pair(r)
+            record_call(self._model, pt, ct, prompt_text=system + user, completion_text=content)
             return content
         except Exception as e:
             log.error("GroqClient.complete_json failed: %s", e)
             raise
 
     async def complete_text(self, system: str, user: str) -> str:
+        _budget.check()
         try:
             r = await self._client.chat.completions.create(
                 model=self._model,
@@ -380,10 +397,12 @@ class GroqClient:
                 ],
             )
             content = r.choices[0].message.content or ""
-            
+
             import re
             content = re.sub(r"<think>[\s\S]*?</think>", "", content).strip()
-            
+
+            pt, ct = _usage_pair(r)
+            record_call(self._model, pt, ct, prompt_text=system + user, completion_text=content)
             return content
         except Exception as e:
             log.error("GroqClient.complete_text failed: %s", e)
@@ -445,12 +464,12 @@ class LlmaasClient:
         token = await self._tokens.get_token()
         return self._client.with_options(api_key=token)
 
-    def _record_usage(self, r) -> None:
-        usage = getattr(r, "usage", None)
-        if usage:
-            _cost_tracker.record(self._model, usage.prompt_tokens, usage.completion_tokens)
+    def _record_usage(self, r, prompt_text: str, completion_text: str) -> None:
+        pt, ct = _usage_pair(r)
+        record_call(self._model, pt, ct, prompt_text=prompt_text, completion_text=completion_text)
 
     async def complete_json(self, system: str, user: str) -> str:
+        _budget.check()
         client = await self._authed_client()
         kwargs: dict = dict(
             model=self._model,
@@ -465,10 +484,12 @@ class LlmaasClient:
         except Exception:
             # Not every model behind the gateway supports response_format.
             r = await client.chat.completions.create(**kwargs)
-        self._record_usage(r)
-        return r.choices[0].message.content or "{}"
+        text = r.choices[0].message.content or "{}"
+        self._record_usage(r, system + user, text)
+        return text
 
     async def complete_text(self, system: str, user: str) -> str:
+        _budget.check()
         client = await self._authed_client()
         r = await client.chat.completions.create(
             model=self._model,
@@ -478,8 +499,9 @@ class LlmaasClient:
                 {"role": "user", "content": user},
             ],
         )
-        self._record_usage(r)
-        return r.choices[0].message.content or ""
+        text = r.choices[0].message.content or ""
+        self._record_usage(r, system + user, text)
+        return text
 
 
 def build_client() -> LlmClient:

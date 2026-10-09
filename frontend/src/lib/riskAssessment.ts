@@ -2,8 +2,7 @@ import { supabase } from "./supabase";
 import type { RiskAssessment } from "../types/db";
 import { computeSnapshotHash } from "./hash";
 import type { AuditResult } from "./auditSignals";
-
-const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000";
+import { aiPost } from "./aiClient";
 
 export async function fetchLatestAssessment(): Promise<RiskAssessment | null> {
   const { data, error } = await (supabase as any)
@@ -69,21 +68,17 @@ export async function runNewRiskAssessment(
 
   // 4. Call AI Service
   try {
-    const res = await fetch(`${AI_API}/priority-briefing`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        decisions,
-        context: "risk_assessment",
-        audit_stats: auditResult.summary,
-        decision_signals: auditResult.findings, // passed as signals
-        cross_team_impact: auditResult.crossTeamImpact,
-      }),
+    const apiData = await aiPost<{
+      structured_audit?: Record<string, any>;
+      briefing_markdown?: string;
+    }>("/priority-briefing", {
+      decisions,
+      context: "risk_assessment",
+      audit_stats: auditResult.summary,
+      decision_signals: auditResult.findings, // passed as signals
+      cross_team_impact: auditResult.crossTeamImpact,
     });
 
-    if (!res.ok) throw new Error(`AI service returned ${res.status}`);
-    const apiData = await res.json();
-    
     const structured = apiData.structured_audit || {};
     
     // 5. Update record with success

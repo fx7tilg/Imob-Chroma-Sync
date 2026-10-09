@@ -10,6 +10,8 @@ import re
 from pydantic import ValidationError
 
 from ..llm import build_client
+from ..guard import fence_untrusted
+from ..retry import backoff
 from ..prompts import CHAT_SYSTEM
 from ..schemas import ChatRequest, ChatResponse, RawLlmChat
 
@@ -36,14 +38,16 @@ def _clean_json(raw: str) -> str:
 
 def _build_user_payload(req: ChatRequest) -> str:
     """Serialise the conversation + who's asking into the LLM user turn."""
-    return json.dumps(
-        {
-            "chat": True,
-            "user_team": req.user_team,
-            "is_project_lead": req.is_project_lead,
-            "context": req.context,
-            "messages": [m.model_dump() for m in req.messages],
-        }
+    return fence_untrusted(
+        json.dumps(
+            {
+                "chat": True,
+                "user_team": req.user_team,
+                "is_project_lead": req.is_project_lead,
+                "context": req.context,
+                "messages": [m.model_dump() for m in req.messages],
+            }
+        )
     )
 
 
@@ -68,6 +72,8 @@ async def reply(req: ChatRequest) -> ChatResponse:
             log.warning("chat LLM attempt %s timed out after %ss", attempt, _LLM_TIMEOUT)
         except (ValidationError, json.JSONDecodeError, ValueError, KeyError) as e:
             log.warning("chat LLM attempt %s failed: %s", attempt, e)
+        if attempt == 1:
+            await backoff(attempt)
 
     return ChatResponse(
         reply=(

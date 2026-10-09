@@ -18,6 +18,7 @@ import re
 from pydantic import ValidationError
 
 from ..llm import build_client
+from ..guard import fence_untrusted
 from ..prompts import READINESS_SYSTEM
 from ..schemas import (
     CriterionResult,
@@ -78,7 +79,7 @@ async def _deep_analysis(req: ReadinessRequest, deterministic_aggregate: str, pe
     }
     try:
         raw = await asyncio.wait_for(
-            _client.complete_json(READINESS_SYSTEM, json.dumps(payload, default=str)),
+            _client.complete_json(READINESS_SYSTEM, fence_untrusted(json.dumps(payload, default=str))),
             timeout=_LLM_TIMEOUT,
         )
         cleaned = _clean_json(raw)

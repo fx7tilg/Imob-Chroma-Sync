@@ -48,7 +48,7 @@ runbook.
 | 10 | Error handling / info leakage | 🔴 | 🟢 | Opaque responses, detail to logs — VERIFIED |
 | 11 | Audit trail integrity | 🔴 | ⚪ | Policy rewritten, not applied — UNVERIFIED |
 | 12 | SQL injection | 🟢 | 🟢 | Parameterised throughout — VERIFIED |
-| 13 | Prompt injection | 🔴 | 🔴 | Unmitigated — VERIFIED as still broken |
+| 13 | Prompt injection | 🔴 | � | Nonce-fenced untrusted data + phrase defanging — VERIFIED by unit test |
 | 14 | Build / compilation | 🔴 | 🟢 | `npm run build` exit 0 — VERIFIED |
 | 15 | Automated tests (backend) | 🔴 | 🟡 | 17 pass, hermetic; coverage still thin — VERIFIED |
 | 16 | Automated tests (frontend) | 🔴 | 🔴 | None exist — VERIFIED |
@@ -60,7 +60,7 @@ runbook.
 | 22 | Monitoring / alerting | 🔴 | 🔴 | None — VERIFIED |
 | 23 | Backups / DR | ⚪ | ⚪ | No evidence found — UNVERIFIED |
 | 24 | Migration safety / reversibility | 🔴 | 🔴 | Destructive drop, no down-migration — VERIFIED |
-| 25 | Cost controls (LLM spend) | 🔴 | 🔴 | Log-only, no hard stop — VERIFIED |
+| 25 | Cost controls (LLM spend) | 🔴 | � | All 5 providers now metered; hard spend cap + per-user credit ledger. Ledger UNVERIFIED (no Docker) |
 | 26 | Deployment runbook | 🔴 | 🟡 | README requirements added; no runbook — VERIFIED |
 | 27 | Performance / bundle size | 🔴 | 🔴 | 3 MB JS, no splitting — VERIFIED |
 | 28 | Documentation accuracy | 🔴 | 🟡 | Corrected key claims; quota docs still wrong — PARTIALLY VERIFIED |
@@ -306,14 +306,30 @@ Postgres could be started and `supabase db reset` could not be run.
 
 ### Non-blockers (should fix)
 
-8. **Prompt injection is unmitigated.** Decision notes and chat messages are
-   `json.dumps`'d directly into prompts with no delimiting or instruction
-   defence (`readiness_service.py` L69-76, `chat_service.py` L37-45).
-9. **LLM budget is not enforced.** `_CostTracker` only logs; `LLMAAS_BUDGET_USD`
-   has no hard stop. Spend is unbounded.
-10. **AI quota is client-side only.** `aiQuota.ts` is pure `localStorage` and is
-    trivially bypassed. Note also a **documentation/reality mismatch**: the docs
-    claim 2/4 per day, the code uses `DEFAULT_QUOTA = 100`.
+8. **~~Prompt injection is unmitigated.~~** FIXED. `app/guard.py` fences
+   user-authored content in a per-request nonce delimiter with an explicit
+   "treat as data" instruction and defangs known override phrasing. Applied to
+   `readiness_service.py` and `chat_service.py`. VERIFIED by unit test.
+9. **~~LLM budget is not enforced.~~** FIXED. Four of five providers recorded
+   **zero** token usage, so most spend was invisible; all five now record into
+   `app/usage.py`, unknown models are priced at a non-zero fallback, and the cap
+   raises `BudgetExceededError` → `503`. VERIFIED by unit test.
+10. **~~AI quota is client-side only.~~** FIXED. `aiQuota.ts` is deleted and
+    replaced by a server-enforced token ledger
+    (`20260920000000_ai_credits.sql` + `app/credits.py`) with reserve/settle
+    semantics, per-role daily token and request allowances, refund on failure,
+    stale-reservation expiry, and remaining balance surfaced in response headers
+    and the header UI meter. **The migration is UNVERIFIED** — Docker is not
+    installed, so it has never been executed.
+
+    Found while fixing this: `PriorityBriefingModal` and `ReportAISummary` were
+    calling the AI service with no `Authorization` header and a stale
+    `VITE_AI_API_URL`, so both had been returning 401 since auth was added.
+    Both now use `aiPost`.
+
+    Still outstanding: `use_ai_credit` (3-5 requests/day per feature) remains a
+    second, parallel limit used by 7 non-LLM "AI" pages. It is server-side and
+    correct, but having two allowance systems is confusing and should be merged.
 11. **Rate limiting is per-process.** With N uvicorn workers the real limit is
     N x the configured value. Needs Redis or a gateway limit.
 12. **Early migrations are not re-runnable**, and `20260906000010` performs a

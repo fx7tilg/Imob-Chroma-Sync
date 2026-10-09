@@ -486,6 +486,20 @@ export type Database = {
         };
         Returns: { allowed: boolean; remaining: number | null };
       };
+      ai_my_credits: {
+        Args: Record<string, never>;
+        Returns: {
+          token_limit: number;
+          tokens_used: number;
+          tokens_remaining: number;
+          request_limit: number;
+          requests_used: number;
+          requests_remaining: number;
+          plan: string;
+          resets_at: string;
+          exhausted: boolean;
+        };
+      };
     };
   };
 };
