@@ -136,10 +136,10 @@ class BudgetExceededError(RuntimeError):
 class _GlobalBudget:
     """Service-wide spend cap.
 
-    Unlike the per-user credit ledger (which lives in Postgres), this is a
-    process-local backstop against a runaway loop burning the whole budget
-    between deploys. It resets on restart by design - it is a circuit breaker,
-    not an accounting system.
+    Seeded at startup from the persisted ledger (``ai_total_spend_usd()``) so a
+    restart cannot silently hand the service a fresh budget, then maintained in
+    process for the rest of the run. If the ledger is unreachable the counter
+    starts at zero and the cap degrades to a per-process backstop.
     """
 
     def __init__(self) -> None:
@@ -150,6 +150,18 @@ class _GlobalBudget:
     @property
     def spent_usd(self) -> float:
         return self._spent_usd
+
+    def seed(self, spent_usd: float) -> None:
+        """Adopt the already-recorded spend. Only ever raises the counter."""
+        if spent_usd <= self._spent_usd:
+            return
+        self._spent_usd = spent_usd
+        limit = self._limit()
+        self._tripped = spent_usd >= limit
+        self._warned_80 = spent_usd >= limit * 0.8
+        log.info(
+            "LLM spend restored from ledger: $%.4f of the $%.2f cap", spent_usd, limit
+        )
 
     def _limit(self) -> float:
         raw = os.environ.get("AI_BUDGET_USD") or os.environ.get("LLMAAS_BUDGET_USD") or "15"

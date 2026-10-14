@@ -7,7 +7,7 @@ import { computeSnapshotHash } from "../lib/hash";
 import { runAudit } from "../lib/auditSignals";
 import type { EnterpriseReport, EnterpriseReportType, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "./LogoMark";
-import { checkAndUseCredit } from "../lib/credits";
+import { checkAiAllowance } from "../lib/credits";
 import { downloadElementAsPdf } from "../lib/pdfExport";
 
 interface Props {
@@ -56,9 +56,9 @@ export default function EnterpriseReportView({ reportType, title, decisions, app
     if (decisions.length === 0 || !auditResult) return;
     
     // We can track credits per report type for granularity, e.g. "enterprise_report_supply_chain"
-    const { allowed } = await checkAndUseCredit(`enterprise_report_${reportType}`);
+    const { allowed, message } = await checkAiAllowance();
     if (!allowed) {
-      setError(`You have exhausted your 3 credits for this report today.`);
+      setError(message!);
       return;
     }
 

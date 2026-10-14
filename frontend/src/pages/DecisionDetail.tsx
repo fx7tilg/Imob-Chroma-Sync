@@ -13,7 +13,7 @@ import DecisionHistory from "../components/DecisionHistory";
 import ApprovalHistory from "../components/ApprovalHistory";
 import AiAnalysingOverlay from "../components/AiAnalysingOverlay";
 import { Zap } from "lucide-react";
-import { checkAndUseCredit } from "../lib/credits";
+import { checkAiAllowance } from "../lib/credits";
 
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -242,9 +242,9 @@ export default function DecisionDetail() {
   }
 
   async function rerunAi() {
-    const { allowed } = await checkAndUseCredit("ai_check");
+    const { allowed, message } = await checkAiAllowance();
     if (!allowed) {
-      setStatusError("You have exhausted your 3 credits for AI Check today.");
+      setStatusError(message!);
       return;
     }
     setAiBusy(true);

@@ -84,6 +84,29 @@ export type DocumentMeta = {
 // TypeScript's implicit index signature, so they fail the `Record<string,
 // unknown>` structural check that postgrest-js's `GenericTable` constraint
 // requires - which silently collapses every Supabase query to `never`.
+export type TeamInvitation = {
+  id: string;
+  email: string;
+  team: Team | null;
+  role: ProfileRole;
+  is_project_lead: boolean;
+  token: string;
+  status: "pending" | "accepted" | "revoked";
+  invited_by: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+};
+
+export type InvitationPreview = {
+  email: string;
+  team: Team | null;
+  role: ProfileRole;
+  is_project_lead: boolean;
+  expires_at: string;
+};
+
 export type Profile = {
   id: string;
   email: string | null;
@@ -444,6 +467,7 @@ export type Database = {
       master_chemical_resistances: { Row: MasterChemicalResistance; Insert: Partial<MasterChemicalResistance>; Update: Partial<MasterChemicalResistance>; Relationships: [] };
       master_validation_statuses: { Row: MasterValidationStatus; Insert: Partial<MasterValidationStatus>; Update: Partial<MasterValidationStatus>; Relationships: [] };
       decision_snapshots: { Row: DecisionSnapshot; Insert: Partial<DecisionSnapshot>; Update: Partial<DecisionSnapshot>; Relationships: [] };
+      team_invitations: { Row: TeamInvitation; Insert: Partial<TeamInvitation>; Update: Partial<TeamInvitation>; Relationships: [] };
       approval_events: { Row: ApprovalEvent; Insert: Partial<ApprovalEvent>; Update: Partial<ApprovalEvent>; Relationships: [] };
       audit_log: {
         Row: {
@@ -480,12 +504,6 @@ export type Database = {
         };
         Returns: void;
       };
-      use_ai_credit: {
-        Args: {
-          p_feature_key: string;
-        };
-        Returns: { allowed: boolean; remaining: number | null };
-      };
       ai_my_credits: {
         Args: Record<string, never>;
         Returns: {
@@ -499,6 +517,18 @@ export type Database = {
           resets_at: string;
           exhausted: boolean;
         };
+      };
+      create_invitation: {
+        Args: { p_email: string; p_team: Team | null; p_role: ProfileRole; p_is_lead: boolean };
+        Returns: TeamInvitation;
+      };
+      resend_invitation: {
+        Args: { p_id: string };
+        Returns: TeamInvitation;
+      };
+      invitation_for_token: {
+        Args: { p_token: string };
+        Returns: InvitationPreview | null;
       };
     };
   };

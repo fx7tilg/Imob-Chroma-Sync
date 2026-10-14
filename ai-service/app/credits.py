@@ -98,6 +98,19 @@ def _balance_from_detail(detail) -> dict:
     return {}
 
 
+async def total_spend_usd() -> float | None:
+    """Spend already recorded in the ledger, or None if it cannot be read."""
+    if not CREDITS_ENABLED:
+        return None
+    try:
+        async with httpx.AsyncClient() as client:
+            data = await _rpc(client, "ai_total_spend_usd", {}, SERVICE_ROLE_KEY)
+        return float(data)  # type: ignore[arg-type]
+    except Exception as exc:
+        log.warning("could not read recorded AI spend: %s", exc)
+        return None
+
+
 async def reserve(caller: Caller, feature: str) -> tuple[str | None, dict]:
     """Reserve an estimate. Returns (request_id, balance).
 

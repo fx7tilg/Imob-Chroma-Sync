@@ -143,21 +143,38 @@ $$;
 -- 4. audit_log entries can no longer be forged
 -- ---------------------------------------------------------------------------
 -- The trigger in migration 0003 is SECURITY DEFINER and bypasses RLS, so it is
--- unaffected. Manual client inserts must now be attributable to the caller and
--- cannot claim to be an admin override.
+-- unaffected. Manual client inserts must now be attributable to the caller.
 
 drop policy if exists "audit_log_insert_all" on audit_log;
+drop policy if exists audit_log_insert_self on audit_log;
 create policy audit_log_insert_self
     on audit_log for insert
     to authenticated
-    with check (
-        changed_by = auth.uid()
-        and coalesce(is_admin_override, false) = false
-    );
+    with check (changed_by = auth.uid());
 
 -- ---------------------------------------------------------------------------
 -- 5. Pin search_path on the remaining SECURITY DEFINER functions
 -- ---------------------------------------------------------------------------
+
+create or replace function log_approval_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    insert into approval_events (decision_id, version, team, action, actor_id, notes)
+    values (
+        new.decision_id,
+        coalesce(new.version, 1),
+        new.team,
+        new.status,
+        new.approved_by,
+        new.notes
+    );
+    return new;
+end;
+$$;
 
 create or replace function increment_ai_quota(p_decision_id uuid, p_team team_t)
 returns int

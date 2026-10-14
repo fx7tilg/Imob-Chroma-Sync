@@ -8,7 +8,7 @@ import { computeSnapshotHash } from "../lib/hash";
 import { runAudit } from "../lib/auditSignals";
 import type { DecisionDeepAnalysis, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "../components/LogoMark";
-import { checkAndUseCredit } from "../lib/credits";
+import { checkAiAllowance } from "../lib/credits";
 import { downloadElementAsPdf } from "../lib/pdfExport";
 
 export default function DecisionDeepAnalysisPage() {
@@ -97,9 +97,9 @@ export default function DecisionDeepAnalysisPage() {
   async function handleRunNew() {
     if (!decision || !auditResult) return;
     
-    const { allowed } = await checkAndUseCredit("deep_analysis");
+    const { allowed, message } = await checkAiAllowance();
     if (!allowed) {
-      setError("You have exhausted your 3 credits for Deep Analysis today.");
+      setError(message!);
       return;
     }
 

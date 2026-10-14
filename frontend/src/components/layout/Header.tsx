@@ -10,7 +10,6 @@ import AiGuideModal from "../AiGuideModal";
 import WorkflowGuideModal from "../WorkflowGuideModal";
 import RCReferenceModal from "../RCReferenceModal";
 import AiDecisionIntelModal from "../AiDecisionIntelModal";
-import AiCreditMeter from "../AiCreditMeter";
 import SearchPalette from "../SearchPalette";
 
 interface AppNotification {
@@ -230,8 +229,6 @@ export default function Header() {
       </div>
 
       <div className={styles.topbarRight}>
-        <AiCreditMeter />
-
         <div ref={notifRef} style={{ position: "relative" }}>
           <button
             className={styles.iconBtn}

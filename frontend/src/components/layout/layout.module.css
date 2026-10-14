@@ -283,7 +283,7 @@
 .topbar {
   height: 56px;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   padding: 0 1.5rem;
   border-radius: 0;
@@ -300,7 +300,7 @@
   align-items: center;
   gap: 0.375rem;
   justify-self: start;
-  min-width: 0;
+  flex-shrink: 0;
 }
 
 .topbarCenter {
@@ -308,8 +308,9 @@
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
-  justify-self: center;
+  justify-self: stretch;
   min-width: 0;
+  overflow: hidden;
 }
 
 /* ── Command Search - Premium pill ── */
@@ -359,6 +360,7 @@
   align-items: center;
   gap: 0.375rem;
   justify-self: end;
+  flex-shrink: 0;
 }
 
 /* Text links in the navy top bar */
@@ -633,6 +635,9 @@
 
 @media (max-width: 1180px) {
   .topbarLink { padding: 0 0.5rem; font-size: 0.75rem; }
+  .profileMeta { display: none; }
+  .topbarCenter { justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+  .topbarCenter::-webkit-scrollbar { display: none; }
 }
 @media (max-width: 1024px) {
   .topbarLink span[data-label] { display: none; }

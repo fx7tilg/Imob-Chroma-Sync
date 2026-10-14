@@ -8,7 +8,7 @@ import { computeSnapshotHash } from "../lib/hash";
 import { runAudit } from "../lib/auditSignals";
 import type { ComprehensiveAudit, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "../components/LogoMark";
-import { checkAndUseCredit } from "../lib/credits";
+import { checkAiAllowance } from "../lib/credits";
 import { downloadElementAsPdf } from "../lib/pdfExport";
 
 export default function ComprehensiveAuditPage() {
@@ -89,9 +89,9 @@ export default function ComprehensiveAuditPage() {
   async function handleRunNew() {
     if (decisions.length === 0 || !auditResult) return;
     
-    const { allowed } = await checkAndUseCredit("comprehensive_audit");
+    const { allowed, message } = await checkAiAllowance();
     if (!allowed) {
-      setError("You have exhausted your 3 credits for Comprehensive Audit today.");
+      setError(message!);
       return;
     }
 

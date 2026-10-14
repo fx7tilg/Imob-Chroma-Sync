@@ -44,8 +44,8 @@ from .security import (
     MAX_BODY_BYTES,
     allowed_origins,
 )
-from .credits import CREDITS_ENABLED, Meter, metered
-from .usage import BudgetExceededError
+from .credits import CREDITS_ENABLED, Meter, metered, total_spend_usd
+from .usage import BudgetExceededError, budget
 from .services import readiness_service, conflicts_service, summary_service, my_summary_service, priority_briefing_service, chat_service, report_summary_service
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -123,12 +123,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 async def _startup_banner() -> None:
+    recorded = await total_spend_usd()
+    if recorded is not None:
+        budget.seed(recorded)
     log.info(
-        "chroma-ai starting: env=%s provider=%s auth=%s credits=%s",
+        "chroma-ai starting: env=%s provider=%s auth=%s credits=%s spent=$%.4f",
         APP_ENV,
         _LLM_PROVIDER,
         "enabled" if AUTH_ENABLED else "DISABLED",
         "enforced" if CREDITS_ENABLED else "DISABLED",
+        budget.spent_usd,
     )
 
 

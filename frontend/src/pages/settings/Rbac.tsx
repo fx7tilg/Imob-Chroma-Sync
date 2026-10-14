@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import PermissionGate from "../../components/auth/PermissionGate";
 import { showToast } from "../../components/ui/Toast";
+import type { ProfileRole, Team, TeamInvitation } from "../../types/db";
 import {
   ROLES,
   ROLE_LABELS,
@@ -34,37 +35,45 @@ const RISK_COLOR: Record<RiskLevel, string> = {
   critical: "#7f1d1d"
 };
 
-interface Invite {
-  id: string;
-  email: string;
-  role: RoleKey;
-  status: "pending" | "accepted" | "expired";
-  sent_at: string;
-  expires_at: string;
+type InviteStatus = "pending" | "accepted" | "expired" | "revoked";
+
+// A pending invitation past its expiry is shown as expired; the row itself
+// only ever moves pending -> accepted | revoked.
+function inviteStatus(i: TeamInvitation): InviteStatus {
+  if (i.status === "pending" && new Date(i.expires_at).getTime() <= Date.now()) return "expired";
+  return i.status;
 }
 
-const MOCK_INVITES: Invite[] = [
-  {
-    id: "i1", email: "lars.becker@vw.de", role: "engineering_editor", status: "pending",
-    sent_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
-    expires_at: new Date(Date.now() + 7 * 86400_000).toISOString()
-  },
-  {
-    id: "i2", email: "eva.klein@vw.de", role: "design_editor", status: "accepted",
-    sent_at: new Date(Date.now() - 3 * 86400_000).toISOString(),
-    expires_at: new Date(Date.now() + 4 * 86400_000).toISOString()
-  },
-  {
-    id: "i3", email: "hans.wolf@vw.de", role: "design_viewer", status: "expired",
-    sent_at: new Date(Date.now() - 12 * 86400_000).toISOString(),
-    expires_at: new Date(Date.now() - 5 * 86400_000).toISOString()
-  }
-];
+function inviteRole(i: TeamInvitation): RoleKey {
+  if (i.is_project_lead) return "project_admin";
+  return `${i.team}_${i.role}` as RoleKey;
+}
 
-const INVITE_BADGE: Record<Invite["status"], string> = {
+// A RoleKey is `<team>_<role>`, or project_admin which has no team.
+function splitRole(r: RoleKey): { team: Team | null; role: ProfileRole; isLead: boolean } {
+  if (r === "project_admin") return { team: null, role: "editor", isLead: true };
+  const [team, role] = r.split("_") as [Team, ProfileRole];
+  return { team, role, isLead: false };
+}
+
+function inviteLink(token: string) {
+  return `${window.location.origin}/signup?invite=${token}`;
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const INVITE_BADGE: Record<InviteStatus, string> = {
   pending: "badge-amber",
   accepted: "badge-green",
-  expired: "badge-red"
+  expired: "badge-red",
+  revoked: "badge-neutral"
 };
 
 function timeAgo(iso: string) {
@@ -518,26 +527,95 @@ function MembersTab() {
 
 /* ─── Tab 4: Invitations ─── */
 function InvitesTab() {
+  const [invites, setInvites] = useState<TeamInvitation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<RoleKey>("design_viewer");
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [created, setCreated] = useState<TeamInvitation | null>(null);
+
+  const load = async () => {
+    const { data, error } = await supabase
+      .from("team_invitations")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) setLoadError(error.message);
+    else {
+      setLoadError(null);
+      setInvites((data ?? []) as TeamInvitation[]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
 
   const stats = useMemo(() => {
-    const count = (s: Invite["status"]) => MOCK_INVITES.filter((i) => i.status === s).length;
+    const count = (s: InviteStatus) => invites.filter((i) => inviteStatus(i) === s).length;
     return {
-      total: MOCK_INVITES.length,
+      total: invites.length,
       pending: count("pending"),
       accepted: count("accepted"),
       expired: count("expired")
     };
-  }, []);
+  }, [invites]);
 
-  const submit = () => {
-    if (!email) return;
-    showToast("success", `Invitation sent to ${email}`);
+  const closeModal = () => {
+    setShowModal(false);
     setEmail("");
     setRole("design_viewer");
-    setShowModal(false);
+    setFormError(null);
+    setCreated(null);
+  };
+
+  const submit = async () => {
+    const { team, role: dbRole, isLead } = splitRole(role);
+    setBusy(true);
+    setFormError(null);
+    const { data, error } = await supabase.rpc("create_invitation", {
+      p_email: email,
+      p_team: team,
+      p_role: dbRole,
+      p_is_lead: isLead
+    });
+    setBusy(false);
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+    setCreated(data as TeamInvitation);
+    void load();
+  };
+
+  const copyLink = async (token: string) => {
+    const ok = await copyText(inviteLink(token));
+    showToast(ok ? "success" : "error", ok ? "Invite link copied" : "Could not copy - select the link and copy it manually");
+  };
+
+  const resend = async (i: TeamInvitation) => {
+    const { data, error } = await supabase.rpc("resend_invitation", { p_id: i.id });
+    if (error) {
+      showToast("error", error.message);
+      return;
+    }
+    const fresh = data as TeamInvitation;
+    const ok = await copyText(inviteLink(fresh.token));
+    showToast("success", ok ? `New 7-day link for ${i.email} copied` : `New link issued for ${i.email}`);
+    void load();
+  };
+
+  const revoke = async (i: TeamInvitation) => {
+    const { error } = await supabase.from("team_invitations").update({ status: "revoked" }).eq("id", i.id);
+    if (error) {
+      showToast("error", error.message);
+      return;
+    }
+    showToast("info", `Invitation for ${i.email} cancelled`);
+    void load();
   };
 
   return (
@@ -568,45 +646,67 @@ function InvitesTab() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_INVITES.map((i) => (
-              <tr key={i.id}>
-                <td style={{ color: "var(--text-0)" }}>{i.email}</td>
-                <td><span className={`badge ${ROLE_BADGE[i.role]}`}>{ROLE_LABELS[i.role]}</span></td>
-                <td><span className={`badge ${INVITE_BADGE[i.status]}`}>{i.status}</span></td>
-                <td style={{ color: "var(--text-2)" }}>{timeAgo(i.sent_at)}</td>
-                <td style={{ color: "var(--text-2)" }}>
-                  {new Date(i.expires_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
-                </td>
-                <td>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.25rem" }}>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: "0.375rem" }}
-                      title="Copy invite link"
-                      onClick={() => showToast("success", "Invite link copied")}
-                    >
-                      <Copy size={13} />
-                    </button>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: "0.375rem" }}
-                      title="Resend"
-                      onClick={() => showToast("info", `Invite resent to ${i.email}`)}
-                    >
-                      <RotateCw size={13} />
-                    </button>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: "0.375rem" }}
-                      title="Cancel"
-                      onClick={() => showToast("info", `Invite for ${i.email} cancelled`)}
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {loading && (
+              <tr><td colSpan={6} style={{ color: "var(--text-2)", textAlign: "center", padding: "1.5rem" }}>Loading invitations…</td></tr>
+            )}
+            {!loading && loadError && (
+              <tr><td colSpan={6} style={{ color: "var(--red)", textAlign: "center", padding: "1.5rem" }}>Could not load invitations: {loadError}</td></tr>
+            )}
+            {!loading && !loadError && invites.length === 0 && (
+              <tr><td colSpan={6} style={{ color: "var(--text-2)", textAlign: "center", padding: "1.5rem" }}>
+                No invitations yet. Use “Invite Member” to add someone to the workspace.
+              </td></tr>
+            )}
+            {invites.map((i) => {
+              const status = inviteStatus(i);
+              const actionable = status === "pending" || status === "expired";
+              const r = inviteRole(i);
+              return (
+                <tr key={i.id}>
+                  <td style={{ color: "var(--text-0)" }}>{i.email}</td>
+                  <td><span className={`badge ${ROLE_BADGE[r]}`}>{ROLE_LABELS[r]}</span></td>
+                  <td><span className={`badge ${INVITE_BADGE[status]}`}>{status}</span></td>
+                  <td style={{ color: "var(--text-2)" }}>{timeAgo(i.created_at)}</td>
+                  <td style={{ color: "var(--text-2)" }}>
+                    {new Date(i.expires_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.25rem" }}>
+                      {status === "pending" && (
+                        <button
+                          className="btn btn-ghost"
+                          style={{ padding: "0.375rem" }}
+                          title="Copy invite link"
+                          onClick={() => void copyLink(i.token)}
+                        >
+                          <Copy size={13} />
+                        </button>
+                      )}
+                      {actionable && (
+                        <button
+                          className="btn btn-ghost"
+                          style={{ padding: "0.375rem" }}
+                          title="Issue a fresh 7-day link"
+                          onClick={() => void resend(i)}
+                        >
+                          <RotateCw size={13} />
+                        </button>
+                      )}
+                      {actionable && (
+                        <button
+                          className="btn btn-ghost"
+                          style={{ padding: "0.375rem" }}
+                          title="Cancel invitation"
+                          onClick={() => void revoke(i)}
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -624,13 +724,44 @@ function InvitesTab() {
             justifyContent: "center",
             animation: "fadeIn 150ms var(--ease)"
           }}
-          onClick={() => setShowModal(false)}
+          onClick={closeModal}
         >
           <div
             className="card"
             style={{ width: "100%", maxWidth: 440, padding: "1.5rem", boxShadow: "var(--shadow-lg)" }}
             onClick={(e) => e.stopPropagation()}
           >
+            {created ? (
+              <>
+                <h2 style={{ marginBottom: "0.5rem" }}>Invitation created</h2>
+                <p style={{ fontSize: "0.8125rem", color: "var(--text-2)", marginBottom: "0.875rem" }}>
+                  Send this link to <strong style={{ color: "var(--text-0)" }}>{created.email}</strong>. It signs them up as{" "}
+                  <strong style={{ color: "var(--text-0)" }}>{ROLE_LABELS[inviteRole(created)]}</strong> and works once, for 7 days.
+                </p>
+                <input
+                  className="input"
+                  readOnly
+                  value={inviteLink(created.token)}
+                  onFocus={(e) => e.currentTarget.select()}
+                  style={{ fontFamily: "monospace", fontSize: "0.75rem" }}
+                />
+                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "1rem" }}>
+                  <a
+                    className="btn btn-ghost"
+                    href={`mailto:${created.email}?subject=${encodeURIComponent("You're invited to Chroma Sync")}&body=${encodeURIComponent(
+                      `You have been invited to Chroma Sync as ${ROLE_LABELS[inviteRole(created)]}.\n\nCreate your account here (link valid for 7 days):\n${inviteLink(created.token)}`
+                    )}`}
+                  >
+                    <Mail size={13} /> Open in email
+                  </a>
+                  <button className="btn btn-accent" onClick={() => void copyLink(created.token)}>
+                    <Copy size={13} /> Copy link
+                  </button>
+                  <button className="btn btn-ghost" onClick={closeModal}>Done</button>
+                </div>
+              </>
+            ) : (
+              <>
             <h2 style={{ marginBottom: "1rem" }}>Invite Member</h2>
             <div style={{ marginBottom: "0.875rem" }}>
               <label style={{ fontSize: "0.75rem", color: "var(--text-2)", display: "block", marginBottom: "0.25rem" }}>
@@ -679,10 +810,17 @@ function InvitesTab() {
                 <span>Project Admin grants full workspace access. Use with care.</span>
               </div>
             )}
+            {formError && (
+              <div style={{ fontSize: "0.75rem", color: "var(--red)", marginBottom: "0.5rem" }}>{formError}</div>
+            )}
             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "1rem" }}>
-              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-accent" onClick={submit} disabled={!email}>Send Invite</button>
+              <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
+              <button className="btn btn-accent" onClick={() => void submit()} disabled={!email || busy}>
+                {busy ? "Creating…" : "Create Invite"}
+              </button>
             </div>
+              </>
+            )}
           </div>
         </div>
       )}

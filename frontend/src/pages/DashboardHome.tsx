@@ -32,6 +32,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../auth/AuthContext";
 import { useGlobalFilter } from "../contexts/FilterContext";
 import { ROLE_LABELS } from "../utils/permissions";
+import AiCreditMeter from "../components/AiCreditMeter";
 import type { Decision, Conflict, Approval } from "../types/db";
 
 /* ── Badge Maps ── */
@@ -350,9 +351,12 @@ export default function DashboardHome() {
             Welcome back, <span style={{ color: "var(--text-0)", fontWeight: 500 }}>{profile?.full_name ?? "there"}</span>
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-3)", fontSize: "0.6875rem" }}>
-          <span className="live-dot" />
-          <span>{formatSyncTime(lastFetched)}</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
+          <AiCreditMeter />
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-3)", fontSize: "0.6875rem" }}>
+            <span className="live-dot" />
+            <span>{formatSyncTime(lastFetched)}</span>
+          </div>
         </div>
       </div>
 

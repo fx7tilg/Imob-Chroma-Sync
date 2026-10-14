@@ -8,7 +8,7 @@ import { computeSnapshotHash } from "../lib/hash";
 import { runAudit } from "../lib/auditSignals";
 import type { RiskAssessment as RiskAssessmentType, Decision, Approval, Conflict } from "../types/db";
 import LogoMark from "../components/LogoMark";
-import { checkAndUseCredit } from "../lib/credits";
+import { checkAiAllowance } from "../lib/credits";
 import { downloadElementAsPdf } from "../lib/pdfExport";
 
 export default function RiskAssessment() {
@@ -97,9 +97,9 @@ export default function RiskAssessment() {
   async function handleRunNew() {
     if (!auditResult) return;
 
-    const { allowed } = await checkAndUseCredit("risk_assessment");
+    const { allowed, message } = await checkAiAllowance();
     if (!allowed) {
-      setError("You have exhausted your 3 credits for Risk Assessment today.");
+      setError(message!);
       return;
     }
 

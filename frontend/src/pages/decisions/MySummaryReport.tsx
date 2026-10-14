@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../auth/AuthContext";
 import LogoMark from "../../components/LogoMark";
 import type { Decision } from "../../types/db";
-import { checkAndUseCredit } from "../../lib/credits";
+import { checkAiAllowance } from "../../lib/credits";
 import { aiPost } from "../../lib/aiClient";
 
 interface MySummaryData {
@@ -76,9 +76,9 @@ export default function MySummaryReport() {
   async function handleRunNew() {
     if (decisions.length === 0) return;
     
-    const { allowed } = await checkAndUseCredit("my_summary");
+    const { allowed, message } = await checkAiAllowance();
     if (!allowed) {
-      setError(`You have exhausted your credits for this feature today.`);
+      setError(message!);
       return;
     }
 

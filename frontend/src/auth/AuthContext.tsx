@@ -22,7 +22,8 @@ interface AuthState {
     password: string,
     fullName: string,
     team: Team | null,
-    isProjectLead: boolean
+    isProjectLead: boolean,
+    inviteToken?: string
   ) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithPKI: (pin: string) => Promise<void>;
@@ -84,15 +85,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
     },
-    signUp: async (email, password, fullName, team, _isProjectLead) => {
+    signUp: async (email, password, fullName, team, _isProjectLead, inviteToken) => {
       // is_project_lead is deliberately NOT forwarded: handle_new_user() forces
       // it to false so a self-service signup cannot grant itself admin rights.
-      // Elevation is done by an existing project lead via the admin screen.
+      // The invite token is the only way to arrive with a role; the database
+      // checks it against the email before applying anything.
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: fullName, team }
+          data: { full_name: fullName, team, ...(inviteToken ? { invite_token: inviteToken } : {}) }
         }
       });
       if (error) throw error;

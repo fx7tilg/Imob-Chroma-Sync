@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Send, Home } from "lucide-react";
 import { sendChat, type ChatMessage } from "../lib/ai";
 import { useAuth } from "../auth/AuthContext";
-import { checkAndUseCredit } from "../lib/credits";
+import { checkAiAllowance } from "../lib/credits";
 import { supabase } from "../lib/supabase";
 import LogoMark from "./LogoMark";
 
@@ -57,9 +57,9 @@ export default function ChatAssistant() {
     if (!question || busy) return;
 
     // Check credits
-    const { allowed } = await checkAndUseCredit("ask_ai");
+    const { allowed, message } = await checkAiAllowance();
     if (!allowed) {
-      setMessages((m) => [...m, { role: "assistant", content: "You have exhausted your 5 Ask AI credits for today." }]);
+      setMessages((m) => [...m, { role: "assistant", content: message! }]);
       return;
     }
 

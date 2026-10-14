@@ -5,9 +5,11 @@ The service is reachable from two places:
 * the browser, which holds a Supabase user access token, and
 * the Deno Edge Functions, which hold the Supabase service-role key.
 
-Both are HS256 JWTs signed with the project's ``SUPABASE_JWT_SECRET``, so a
-single verification path covers both callers and no new shared secret has to be
-distributed to the frontend bundle.
+Supabase signs user access tokens with a per-project asymmetric key (ES256 or
+RS256) published at ``/auth/v1/.well-known/jwks.json``, while the legacy
+anon/service-role keys remain HS256 tokens signed with ``SUPABASE_JWT_SECRET``.
+Both are accepted here, selected by the ``alg`` header, so one dependency
+covers both callers and no new shared secret ships in the frontend bundle.
 """
 
 from __future__ import annotations
@@ -28,7 +30,9 @@ APP_ENV = os.environ.get("APP_ENV", "development").strip().lower()
 IS_PRODUCTION = APP_ENV in {"production", "prod"}
 
 _JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "").strip()
+_SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
 _ACCEPTED_ROLES = {"authenticated", "service_role"}
+_ASYMMETRIC_ALGS = ("ES256", "RS256")
 
 # Rate limit: requests per window, per caller (user id, else client IP).
 _RATE_LIMIT = int(os.environ.get("AI_RATE_LIMIT_REQUESTS", "60"))
@@ -37,18 +41,24 @@ _RATE_WINDOW_S = int(os.environ.get("AI_RATE_LIMIT_WINDOW_SECONDS", "60"))
 # Largest request body we are willing to buffer and forward to an LLM.
 MAX_BODY_BYTES = int(os.environ.get("AI_MAX_BODY_BYTES", str(1024 * 1024)))
 
-if not _JWT_SECRET:
+if not _JWT_SECRET and not _SUPABASE_URL:
     if IS_PRODUCTION:
         raise RuntimeError(
-            "SUPABASE_JWT_SECRET is required when APP_ENV=production. "
-            "Refusing to start an unauthenticated AI service."
+            "SUPABASE_JWT_SECRET or SUPABASE_URL is required when "
+            "APP_ENV=production. Refusing to start an unauthenticated AI service."
         )
     log.critical(
-        "SUPABASE_JWT_SECRET is not set - AI endpoints are UNAUTHENTICATED. "
-        "This is only acceptable for local development."
+        "Neither SUPABASE_JWT_SECRET nor SUPABASE_URL is set - AI endpoints are "
+        "UNAUTHENTICATED. This is only acceptable for local development."
     )
 
-AUTH_ENABLED = bool(_JWT_SECRET)
+AUTH_ENABLED = bool(_JWT_SECRET or _SUPABASE_URL)
+
+_jwks_client: jwt.PyJWKClient | None = (
+    jwt.PyJWKClient(f"{_SUPABASE_URL}/auth/v1/.well-known/jwks.json", cache_keys=True)
+    if _SUPABASE_URL
+    else None
+)
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -109,18 +119,50 @@ def allowed_origins() -> list[str]:
     return ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
+def _signing_key(token: str) -> tuple[object, list[str]]:
+    """Pick the verification key from the token's own ``alg`` header.
+
+    The header is untrusted, but it only selects which key to verify against -
+    an attacker cannot downgrade to a key we do not hold, and ``algorithms`` is
+    pinned so ``alg: none`` is never accepted.
+    """
+    alg = str(jwt.get_unverified_header(token).get("alg", ""))
+
+    if alg in _ASYMMETRIC_ALGS:
+        if _jwks_client is None:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "asymmetric token received but SUPABASE_URL is not configured",
+            )
+        return _jwks_client.get_signing_key_from_jwt(token).key, [alg]
+
+    if alg == "HS256":
+        if not _JWT_SECRET:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "HS256 token received but SUPABASE_JWT_SECRET is not configured",
+            )
+        return _JWT_SECRET, ["HS256"]
+
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "unsupported token algorithm")
+
+
 def _decode(token: str) -> dict:
     try:
+        key, algorithms = _signing_key(token)
         return jwt.decode(
             token,
-            _JWT_SECRET,
-            algorithms=["HS256"],
+            key,
+            algorithms=algorithms,
             # Supabase's legacy anon/service-role keys carry no `aud` claim,
             # while user tokens use aud="authenticated". Role is checked below.
             options={"verify_aud": False},
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token expired")
+    except jwt.PyJWKClientError as exc:
+        log.warning("JWKS lookup failed: %s", exc)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token")
     except jwt.InvalidTokenError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token")
 
