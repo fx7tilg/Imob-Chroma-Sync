@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../auth/AuthContext";
 import type { Approval, Decision, Team } from "../../types/db";
 import RatingBadge from "../../components/RatingBadge";
+import { reviewBucket } from "../../lib/reviewBucket";
 
 const STATUS_BADGE: Record<string, string> = {
   draft: "badge-purple",
@@ -86,37 +87,13 @@ export default function MyQueue() {
         approvalsByDecision.set(a.decision_id, list);
       }
 
-      const currentUserId = profile?.id;
-      // Filter: only show decisions where MY team's approval is pending AND I own it
+      // Same rule the sidebar badge uses: owned by me, my team's turn, my approval pending.
       const queue: QueueItem[] = [];
       for (const d of decisions as Decision[]) {
         const approvals = approvalsByDecision.get(d.id) ?? [];
-        
-        let ownerId = null;
-        if (userTeam === "engineering") ownerId = d.engineering_owner_id;
-        if (userTeam === "procurement") ownerId = d.procurement_owner_id;
-        if (userTeam === "quality") ownerId = d.quality_owner_id;
+        if (reviewBucket(d, approvals, userTeam, profile?.id) !== "queue") continue;
 
-        // Queue only contains items you have explicitly taken over
-        if (ownerId !== currentUserId) continue;
-
-        const myApproval = approvals.find(a => a.team === userTeam);
-
-        if (!myApproval || myApproval.status !== "pending") continue;
-
-        // Gate check: is my team allowed to act right now?
-        const designApproved = approvals.find(a => a.team === "design")?.status === "approved";
-        const engApproved = approvals.find(a => a.team === "engineering")?.status === "approved";
-        const procApproved = approvals.find(a => a.team === "procurement")?.status === "approved";
-
-        // Design auto-approves, never shows in queue
-        if (userTeam === "design") continue;
-
-        // Engineering/Procurement: need Design approved
-        if ((userTeam === "engineering" || userTeam === "procurement") && !designApproved) continue;
-
-        // Quality: need both Eng + Proc approved
-        if (userTeam === "quality" && (!engApproved || !procApproved)) continue;
+        const myApproval = approvals.find(a => a.team === userTeam)!;
 
         queue.push({
           ...(d as Decision),

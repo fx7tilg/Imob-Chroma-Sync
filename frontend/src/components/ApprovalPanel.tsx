@@ -138,6 +138,14 @@ export default function ApprovalPanel({
 
   async function handleAction(status: "approved" | "rejected") {
     if (!userTeam || !profileId) return;
+    // The AI rating is advisory: it never blocks an approver, but approving over a
+    // red rating should be a conscious choice.
+    if (status === "approved" && userTeam === "quality" && decision.ai_rating === "red") {
+      const proceed = window.confirm(
+        "The AI readiness check flagged this decision as BLOCKED.\n\nApproving it overrides that warning. Continue?"
+      );
+      if (!proceed) return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -186,16 +194,17 @@ export default function ApprovalPanel({
             .single();
           if (!urErr && urData && onDecisionUpdate) onDecisionUpdate(urData as Decision);
         } else if (userTeam === "quality") {
-          // Quality final approval - check all other teams
+          // Quality final approval: the decision is approved once all four teams have approved.
           const { data: allApprovals } = await supabase.from("approvals").select("*").eq("decision_id", decision.id);
-          const hasAnyRejection = allApprovals?.some(a => a.team !== "quality" && a.status === "rejected");
-          if (!hasAnyRejection && decision.ai_rating !== "red") {
+          const everyTeamApproved = (allApprovals ?? []).length > 0 && (allApprovals ?? []).every(a => a.status === "approved");
+          if (everyTeamApproved) {
             const { data: approvedData, error: approvedErr } = await supabase.from("decisions")
               .update({ status: "approved" })
               .eq("id", decision.id)
               .select("*")
               .single();
-            if (!approvedErr && approvedData && onDecisionUpdate) onDecisionUpdate(approvedData as Decision);
+            if (approvedErr) throw approvedErr;
+            if (approvedData && onDecisionUpdate) onDecisionUpdate(approvedData as Decision);
           }
         }
       }

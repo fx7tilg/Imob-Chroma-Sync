@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import type { PermissionKey } from "../../utils/permissions";
+import type { Approval, Team } from "../../types/db";
+import { reviewBucket } from "../../lib/reviewBucket";
 import { supabase } from "../../lib/supabase";
 import LogoMark from "../../components/LogoMark";
 import styles from "./layout.module.css";
@@ -108,32 +110,32 @@ export default function Sidebar() {
     async function loadBadges() {
       const counts: Record<string, number> = {};
 
-      // Queue count and Pool count
+      // Queue and Pool counts use the exact predicate the pages list with, so
+      // a badge can never show more than the page contains.
       if (userTeam && profile?.id) {
-        const ownerColumn = userTeam === "engineering" ? "engineering_owner_id" : 
-                            userTeam === "procurement" ? "procurement_owner_id" : 
-                            userTeam === "quality" ? "quality_owner_id" : null;
+        const { data: reviewable } = await supabase
+          .from("decisions")
+          .select("id, status, engineering_owner_id, procurement_owner_id, quality_owner_id")
+          .in("status", ["submitted", "under_review"]);
 
-        if (ownerColumn) {
-          // My Queue (owned by me)
-          const { data: queueData } = await supabase
-            .from("approvals")
-            .select(`decision_id, decisions!inner(status, ${ownerColumn})`)
-            .eq("team", userTeam)
-            .eq("status", "pending")
-            .eq(`decisions.${ownerColumn}`, profile.id)
-            .in("decisions.status" as any, ["submitted", "under_review"]);
-          counts.queue = queueData?.length ?? 0;
+        const ids = (reviewable ?? []).map((d) => d.id);
+        const { data: approvalRows } = ids.length
+          ? await supabase.from("approvals").select("decision_id, team, status").in("decision_id", ids)
+          : { data: [] as { decision_id: string; team: Team; status: Approval["status"] }[] };
 
-          // Open Pool (no owner yet)
-          const { data: poolData } = await supabase
-            .from("approvals")
-            .select(`decision_id, decisions!inner(status, ${ownerColumn})`)
-            .eq("team", userTeam)
-            .eq("status", "pending")
-            .is(`decisions.${ownerColumn}`, null)
-            .in("decisions.status" as any, ["submitted", "under_review"]);
-          counts.pool = poolData?.length ?? 0;
+        const byDecision = new Map<string, { team: Team; status: Approval["status"] }[]>();
+        for (const a of approvalRows ?? []) {
+          const list = byDecision.get(a.decision_id) ?? [];
+          list.push({ team: a.team, status: a.status });
+          byDecision.set(a.decision_id, list);
+        }
+
+        counts.queue = 0;
+        counts.pool = 0;
+        for (const d of reviewable ?? []) {
+          const bucket = reviewBucket(d, byDecision.get(d.id) ?? [], userTeam, profile.id);
+          if (bucket === "queue") counts.queue++;
+          else if (bucket === "pool") counts.pool++;
         }
       }
 
@@ -165,7 +167,7 @@ export default function Sidebar() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userTeam, isLead]);
+  }, [userTeam, isLead, profile?.id]);
 
   const togglePin = () => {
     const next = !pinned;
