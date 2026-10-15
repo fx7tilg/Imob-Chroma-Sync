@@ -106,7 +106,7 @@ export default function AiDecisionIntelModal({ isOpen, onClose }: AiDecisionInte
               </div>
               <div style={{ fontSize: "0.75rem", color: "var(--text-2)", lineHeight: 1.6 }}>
                 <p style={{ margin: "0 0 0.5rem 0" }}><strong style={{ color: "var(--text-1)" }}>Trigger:</strong> When a Designer clicks "Submit Decision", the AI immediately performs a full 6-point Readiness Criteria (RC) scan before the decision enters the review pipeline.</p>
-                <p style={{ margin: 0 }}><strong style={{ color: "var(--text-1)" }}>Auto-Reject:</strong> If any RC evaluates to Red (e.g., orphan material, RBAC violation, or a direct conflict), the submission is automatically rejected with a detailed explanation. The designer must fix the issue and resubmit.</p>
+                <p style={{ margin: 0 }}><strong style={{ color: "var(--text-1)" }}>Human Decision:</strong> If any RC evaluates to Red (e.g., orphan material, RBAC violation, or a direct conflict), the decision is flagged as blocked with a detailed explanation. The AI never rejects on its own - an approver reviews the flag and decides whether to reject, with a recorded note.</p>
               </div>
             </div>
 

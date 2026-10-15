@@ -69,6 +69,45 @@ def test_readiness_fallback_flags_when_fields_missing(monkeypatch):
     assert any(f["flag"] == "ai_fallback" for f in body["flags"])
 
 
+def test_llm_cannot_escalate_rating_to_red(monkeypatch):
+    """A red rating marks a decision as blocked, so it must come from the scorer.
+
+    Regression: the narrator answered "red" for a freshly submitted decision
+    because Engineering/Procurement fields were still empty, and that verdict
+    overrode a non-red deterministic score.
+    """
+    import json
+
+    from app.services import readiness_service
+
+    class Alarmist:
+        async def complete_json(self, system, user):
+            return json.dumps({
+                "rating": "red",
+                "reason": "Engineering fields missing.",
+                "flags": [{"flag": "engineering_fields_missing", "detail": "x"}],
+            })
+
+    monkeypatch.setattr(readiness_service, "_client", Alarmist())
+    material = {
+        "code": "MAT-7892", "display_name": "Test", "lifecycle_status": "active",
+        "compliance_status": "pass", "lead_time_weeks": 4,
+    }
+    r = client.post(
+        "/readiness",
+        json={"decision": _decision(component_id="CMP-1"), "material": material, "approvals": []},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["rating"] != "red"
+    assert all(body[k]["rating"] != "red" for k in (
+        "rc1_lifecycle", "rc2_compliance", "rc3_lead_time",
+        "rc4_visual", "rc5_approval_rbac", "rc6_conflict",
+    ))
+    # The narrative and its advisory flags are still surfaced.
+    assert any(f["flag"] == "engineering_fields_missing" for f in body["flags"])
+
+
 def test_conflicts_empty_when_single_decision():
     r = client.post(
         "/conflicts",

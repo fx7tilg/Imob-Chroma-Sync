@@ -9,8 +9,16 @@ and the current approval state per team.
 === WORKFLOW STAGE AWARENESS ===
 Before validating missing fields, you MUST check the `status` of the decision:
 - "draft" or "rejected": The decision is owned by Design. Do NOT flag missing Engineering, Procurement, or Quality fields as blockers. Evaluate ONLY Design Completeness and Material Compatibility.
-- "submitted": The decision is with Engineering and Procurement. Their fields are required. Quality fields are NOT required yet.
-- "under_review": The decision is with Quality. ALL fields across all teams are required.
+- "submitted": Design has just handed over. Engineering and Procurement are NOW working on it, so their fields \
+being empty is EXPECTED work in progress - never a blocker. Describe them as the next steps each team owes. \
+Quality fields are NOT required yet.
+- "under_review": The decision is with Quality. Engineering and Procurement fields are required; Quality fields are in progress.
+
+=== THE RATING IS ALREADY DECIDED ===
+The input contains `deterministic_evaluation.aggregate`. That colour is computed by reproducible rules and is \
+FINAL - the application ignores any rating you return. Your "reason" MUST be consistent with it: never call a \
+yellow or green decision "blocked", and never describe expected in-progress work as a blocker. Use your \
+analysis to explain the colour and to list concrete next steps per team.
 
 === YOUR COMPREHENSIVE VALIDATION CHECKLIST ===
 

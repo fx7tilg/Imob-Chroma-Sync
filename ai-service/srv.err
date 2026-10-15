@@ -1,0 +1,20 @@
+INFO:     Started server process [40428]
+INFO:     Waiting for application startup.
+INFO:httpx:HTTP Request: POST http://127.0.0.1:54321/rest/v1/rpc/ai_total_spend_usd "HTTP/1.1 200 OK"
+INFO:chroma-ai.usage:LLM spend restored from ledger: $0.0702 of the $5.00 cap
+INFO:chroma-ai:chroma-ai starting: env=development provider=llmaas auth=enabled credits=enforced spent=$0.0702
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8010 (Press CTRL+C to quit)
+INFO:httpx:HTTP Request: POST http://127.0.0.1:54321/rest/v1/rpc/ai_reserve_credits "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://idp.cloud.vwgroup.com/auth/realms/kums-mfa/protocol/openid-connect/token "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://llmapi.ai.vwgroup.com/chat/completions "HTTP/1.1 200 OK"
+INFO:chroma-ai.credits:ai usage feature=readiness model=gpt-4.1-mini tokens=3757 cost=$0.00196 estimated=False
+INFO:httpx:HTTP Request: POST http://127.0.0.1:54321/rest/v1/rpc/ai_settle_credits "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://127.0.0.1:54321/rest/v1/rpc/ai_reserve_credits "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://llmapi.ai.vwgroup.com/chat/completions "HTTP/1.1 200 OK"
+INFO:chroma-ai.credits:ai usage feature=readiness model=gpt-4.1-mini tokens=3802 cost=$0.00196 estimated=False
+INFO:httpx:HTTP Request: POST http://127.0.0.1:54321/rest/v1/rpc/ai_settle_credits "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://127.0.0.1:54321/rest/v1/rpc/ai_reserve_credits "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://llmapi.ai.vwgroup.com/chat/completions "HTTP/1.1 200 OK"
+INFO:chroma-ai.credits:ai usage feature=readiness model=gpt-4.1-mini tokens=3816 cost=$0.00191 estimated=False
+INFO:httpx:HTTP Request: POST http://127.0.0.1:54321/rest/v1/rpc/ai_settle_credits "HTTP/1.1 200 OK"

@@ -980,7 +980,7 @@ function AI() {
               <div className="k">01 · On Submission Scan</div>
               <h4>Trigger</h4>
               <div className="cs-ai-result">
-                When a Designer clicks "Submit Decision", the AI immediately performs a full 6-point Readiness Criteria (RC) scan before the decision enters the review pipeline. If any RC evaluates to Red, the submission is automatically rejected.
+                When a Designer clicks "Submit Decision", the AI immediately performs a full 6-point Readiness Criteria (RC) scan before the decision enters the review pipeline. If any RC evaluates to Red, the decision is flagged as blocked for the approvers - only a human approver can reject it.
               </div>
             </div>
             <div className="cs-ai-card">

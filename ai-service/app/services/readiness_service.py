@@ -84,21 +84,18 @@ async def _deep_analysis(req: ReadinessRequest, deterministic_aggregate: str, pe
         )
         cleaned = _clean_json(raw)
         obj = json.loads(cleaned)
-        
-        ai_rating = obj.get("rating", deterministic_aggregate)
-        reason = obj.get("reason") if isinstance(obj, dict) else obj.get("reason")
-        raw_flags = obj.get("flags", [])
-        
+
+        reason = obj.get("reason") if isinstance(obj, dict) else None
+        raw_flags = obj.get("flags", []) if isinstance(obj, dict) else []
+
         flags = []
         for f in raw_flags:
             if isinstance(f, dict) and "flag" in f:
                 flags.append(ReadinessFlag(flag=f["flag"], detail=f.get("detail")))
-                
-        # Merge rating: worst color wins
-        order = {"green": 0, "yellow": 1, "red": 2}
-        final_rating = ai_rating if order.get(ai_rating, 0) > order.get(deterministic_aggregate, 0) else deterministic_aggregate
-        
-        return final_rating, reason, flags
+
+        # The LLM's own "rating" is deliberately ignored: the colour must come
+        # from the reproducible scorer, never from a model opinion.
+        return deterministic_aggregate, reason, flags
     except asyncio.TimeoutError:
         log.warning("deep analysis timed out after %ss", _LLM_TIMEOUT)
     except Exception as e:  # noqa: BLE001 - never let a narrator failure break scoring
